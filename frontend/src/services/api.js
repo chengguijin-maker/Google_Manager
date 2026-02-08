@@ -1,5 +1,4 @@
-// API 调用函数
-const API_BASE = '/api';
+import { invoke } from '@tauri-apps/api/core';
 
 // 生成盐值：时间戳减去2003，再 MD5 哈希
 const generateSalt = () => {
@@ -121,87 +120,145 @@ const md5 = (string) => {
 };
 
 const api = {
-    // 登录验证（带盐值）
+    // 登录验证（桌面应用无需实际登录）
     async login(password) {
-        const salt = generateSalt();
-        const res = await fetch(`${API_BASE}/auth/login`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ password, salt })
-        });
-        return await res.json();
+        // 桌面应用不需要登录认证，直接返回成功
+        return { success: true, message: 'Desktop app does not require login' };
     },
 
-    // 检查封禁状态
+    // 检查封禁状态（桌面应用无需检查）
     async checkAuth() {
-        const res = await fetch(`${API_BASE}/auth/check`);
-        return await res.json();
+        // 桌面应用不需要封禁检查，始终返回正常状态
+        return { success: true, blocked: false };
     },
 
     // 获取所有账号
     async getAccounts(search = '') {
-        const url = search
-            ? `${API_BASE}/accounts?search=${encodeURIComponent(search)}`
-            : `${API_BASE}/accounts`;
-        const res = await fetch(url);
-        const data = await res.json();
-        return data.success ? data.data : [];
+        try {
+            const accounts = await invoke('get_accounts', {
+                search: search || null
+            });
+            return accounts;
+        } catch (error) {
+            console.error('Failed to get accounts:', error);
+            return [];
+        }
     },
 
     // 批量导入账号
     async batchImport(accounts) {
-        const res = await fetch(`${API_BASE}/accounts/batch`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ accounts })
-        });
-        return await res.json();
+        try {
+            const result = await invoke('batch_import', { accounts });
+            return {
+                success: true,
+                successCount: result.success_count,
+                failCount: result.fail_count
+            };
+        } catch (error) {
+            console.error('Failed to batch import:', error);
+            return { success: false, message: error.toString() };
+        }
+    },
+
+    // 创建账号
+    async createAccount(account) {
+        try {
+            const newAccount = await invoke('create_account', { account });
+            return { success: true, data: newAccount };
+        } catch (error) {
+            console.error('Failed to create account:', error);
+            return { success: false, message: error.toString() };
+        }
     },
 
     // 更新账号
     async updateAccount(id, data) {
-        const res = await fetch(`${API_BASE}/accounts/${id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
-        });
-        return await res.json();
+        try {
+            const account = await invoke('update_account', {
+                id,
+                account: data
+            });
+            return { success: true, data: account };
+        } catch (error) {
+            console.error('Failed to update account:', error);
+            return { success: false, message: error.toString() };
+        }
     },
 
     // 删除账号
     async deleteAccount(id) {
-        const res = await fetch(`${API_BASE}/accounts/${id}`, {
-            method: 'DELETE'
-        });
-        return await res.json();
+        try {
+            await invoke('delete_account', { id });
+            return { success: true };
+        } catch (error) {
+            console.error('Failed to delete account:', error);
+            return { success: false, message: error.toString() };
+        }
     },
 
     // 切换状态
     async toggleStatus(id) {
-        const res = await fetch(`${API_BASE}/accounts/${id}/status`, {
-            method: 'PATCH'
-        });
-        return await res.json();
+        try {
+            const account = await invoke('toggle_status', { id });
+            return { success: true, data: account };
+        } catch (error) {
+            console.error('Failed to toggle status:', error);
+            return { success: false, message: error.toString() };
+        }
     },
 
     // 切换出售状态
     async toggleSoldStatus(id) {
-        const res = await fetch(`${API_BASE}/accounts/${id}/sold`, {
-            method: 'PATCH'
-        });
-        return await res.json();
+        try {
+            const account = await invoke('toggle_sold_status', { id });
+            return { success: true, data: account };
+        } catch (error) {
+            console.error('Failed to toggle sold status:', error);
+            return { success: false, message: error.toString() };
+        }
     },
 
     // 获取 2FA 验证码
     async get2FACode(id) {
-        const res = await fetch(`${API_BASE}/accounts/${id}/2fa`);
-        return await res.json();
+        try {
+            // 首先获取账号信息以获得 secret
+            const accounts = await invoke('get_accounts', { search: null });
+            const account = accounts.find(acc => acc.id === id);
+
+            if (!account || !account.secret) {
+                return {
+                    success: false,
+                    message: 'Account not found or secret not configured'
+                };
+            }
+
+            // 使用 secret 生成 TOTP
+            const result = await invoke('generate_totp', {
+                secret: account.secret
+            });
+
+            return {
+                success: true,
+                code: result.code,
+                remaining: result.remaining
+            };
+        } catch (error) {
+            console.error('Failed to generate 2FA code:', error);
+            return { success: false, message: error.toString() };
+        }
     },
 
     // 获取账号修改历史记录
     async getAccountHistory(id) {
-        const res = await fetch(`${API_BASE}/accounts/${id}/history`);
-        return await res.json();
+        try {
+            const history = await invoke('get_account_history', {
+                accountId: id
+            });
+            return { success: true, data: history };
+        } catch (error) {
+            console.error('Failed to get account history:', error);
+            return { success: false, message: error.toString(), data: [] };
+        }
     }
 };
 

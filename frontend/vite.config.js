@@ -12,11 +12,11 @@ export default defineConfig({
     },
     // 开发服务器配置
     server: {
-        port: 3000,
-        // 代理 API 请求到 Flask 后端
+        port: 5173,
+        // 代理 API 请求到 Flask 后端（Tauri 模式下不需要）
         proxy: {
             '/api': {
-                target: 'http://localhost:5000',
+                target: 'http://localhost:8002',
                 changeOrigin: true,
             }
         }
