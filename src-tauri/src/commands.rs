@@ -323,3 +323,63 @@ pub struct BatchImportResult {
     pub success_count: i32,
     pub fail_count: i32,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_totp_generation() {
+        // 使用符合 RFC6238 标准的测试密钥（至少 128 位）
+        let secret = "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP".to_string();
+        let result = generate_totp(secret);
+
+        assert!(result.is_ok());
+        let totp_result = result.unwrap();
+        assert_eq!(totp_result.code.len(), 6);
+        assert!(totp_result.remaining <= 30);
+        assert!(totp_result.remaining >= 1);
+    }
+
+    #[test]
+    fn test_totp_with_spaces() {
+        // 测试带空格的密钥（应该被清理）
+        let secret = "JBSW Y3DP EHPK 3PXP JBSW Y3DP EHPK 3PXP".to_string();
+        let result = generate_totp(secret);
+
+        assert!(result.is_ok());
+        let totp_result = result.unwrap();
+        assert_eq!(totp_result.code.len(), 6);
+    }
+
+    #[test]
+    fn test_totp_lowercase() {
+        // 测试小写密钥（应该被转换为大写）
+        let secret = "jbswy3dpehpk3pxpjbswy3dpehpk3pxp".to_string();
+        let result = generate_totp(secret);
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_totp_invalid_secret() {
+        // 测试无效的密钥
+        let secret = "invalid!@#".to_string();
+        let result = generate_totp(secret);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_totp_consistency() {
+        // 同一秒内生成的 TOTP 应该一致
+        let secret = "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP".to_string();
+        let result1 = generate_totp(secret.clone()).unwrap();
+        let result2 = generate_totp(secret).unwrap();
+
+        // 如果在同一个30秒窗口内，代码应该相同
+        if result1.remaining == result2.remaining {
+            assert_eq!(result1.code, result2.code);
+        }
+    }
+}
