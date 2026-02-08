@@ -133,10 +133,11 @@ const api = {
     },
 
     // 获取所有账号
-    async getAccounts(search = '') {
+    async getAccounts(search = '', soldStatus = null) {
         try {
             const accounts = await invoke('get_accounts', {
-                search: search || null
+                search: search || null,
+                sold_status: soldStatus || null
             });
             return accounts;
         } catch (error) {

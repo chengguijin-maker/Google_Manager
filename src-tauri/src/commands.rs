@@ -3,23 +3,40 @@ use rusqlite::params;
 use crate::database::{Database, Account, AccountHistory};
 
 #[tauri::command]
-pub fn get_accounts(db: State<Database>, search: Option<String>) -> Result<Vec<Account>, String> {
+pub fn get_accounts(db: State<Database>, search: Option<String>, sold_status: Option<String>) -> Result<Vec<Account>, String> {
     let conn = db.0.lock().map_err(|e| e.to_string())?;
 
-    let (query, params_vec): (String, Vec<String>) = match &search {
-        Some(s) if !s.is_empty() => {
+    let mut where_clauses = Vec::new();
+    let mut params_vec: Vec<String> = Vec::new();
+
+    // 搜索条件
+    if let Some(s) = &search {
+        if !s.is_empty() {
             let search_pattern = format!("%{}%", s);
-            (
-                "SELECT id, email, password, recovery, secret, remark, status, sold_status, created_at, updated_at
-                 FROM accounts WHERE email LIKE ?1 OR remark LIKE ?2 ORDER BY id DESC".to_string(),
-                vec![search_pattern.clone(), search_pattern]
-            )
-        },
-        _ => (
+            where_clauses.push("(email LIKE ? OR remark LIKE ?)".to_string());
+            params_vec.push(search_pattern.clone());
+            params_vec.push(search_pattern);
+        }
+    }
+
+    // 出售状态筛选
+    if let Some(status) = &sold_status {
+        if status == "sold" || status == "unsold" {
+            where_clauses.push("sold_status = ?".to_string());
+            params_vec.push(status.clone());
+        }
+    }
+
+    // 构建查询语句
+    let query = if where_clauses.is_empty() {
+        "SELECT id, email, password, recovery, secret, remark, status, sold_status, created_at, updated_at
+         FROM accounts ORDER BY id DESC".to_string()
+    } else {
+        format!(
             "SELECT id, email, password, recovery, secret, remark, status, sold_status, created_at, updated_at
-             FROM accounts ORDER BY id DESC".to_string(),
-            vec![]
-        ),
+             FROM accounts WHERE {} ORDER BY id DESC",
+            where_clauses.join(" AND ")
+        )
     };
 
     let mut stmt = conn.prepare(&query).map_err(|e| e.to_string())?;

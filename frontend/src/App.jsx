@@ -20,6 +20,7 @@ const App = () => {
     const [view, setView] = useState('list');
     const [accounts, setAccounts] = useState([]);
     const [search, setSearch] = useState('');
+    const [soldStatusFilter, setSoldStatusFilter] = useState('all');
     const [notification, setNotification] = useState(null);
     const [loading, setLoading] = useState(true);
 
@@ -64,12 +65,13 @@ const App = () => {
     // --- 加载账号数据 ---
     useEffect(() => {
         loadAccounts();
-    }, []);
+    }, [search, soldStatusFilter]);
 
     const loadAccounts = async () => {
         try {
             setLoading(true);
-            const data = await api.getAccounts();
+            const soldStatus = soldStatusFilter === 'all' ? null : soldStatusFilter;
+            const data = await api.getAccounts(search, soldStatus);
             setAccounts(data);
         } catch (error) {
             console.error('加载账号失败:', error);
@@ -242,12 +244,8 @@ const App = () => {
         }
     };
 
-    const filteredAccounts = useMemo(() => {
-        return accounts.filter(acc =>
-            acc.email.toLowerCase().includes(search.toLowerCase()) ||
-            (acc.remark && acc.remark.toLowerCase().includes(search.toLowerCase()))
-        );
-    }, [accounts, search]);
+    // 账号已经由后端筛选，不需要前端再过滤
+    const filteredAccounts = accounts;
 
     const globalFontStyle = {
         fontFamily: '"Times New Roman", Times, serif',
@@ -329,6 +327,8 @@ const App = () => {
                         accounts={filteredAccounts}
                         search={search}
                         setSearch={setSearch}
+                        soldStatusFilter={soldStatusFilter}
+                        setSoldStatusFilter={setSoldStatusFilter}
                         copyToClipboard={copyToClipboard}
                         generate2FA={generate2FA}
                         twoFACode={twoFACode}

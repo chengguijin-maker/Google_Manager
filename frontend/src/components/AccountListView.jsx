@@ -25,6 +25,8 @@ const AccountListView = ({
     accounts,
     search,
     setSearch,
+    soldStatusFilter,
+    setSoldStatusFilter,
     copyToClipboard,
     generate2FA,
     twoFACode,
@@ -36,17 +38,8 @@ const AccountListView = ({
     onSearchChange,
     darkMode
 }) => {
-    // 筛选状态: 'all' | 'sold' | 'unsold'
-    const [soldFilter, setSoldFilter] = useState('all');
-
-    // 根据筛选过滤账号
-    const filteredAccounts = useMemo(() => {
-        if (soldFilter === 'all') return accounts;
-        return accounts.filter(acc => acc.soldStatus === soldFilter);
-    }, [accounts, soldFilter]);
-
-    // 使用分页 Hook
-    const pagination = usePagination(filteredAccounts, 10);
+    // 使用分页 Hook（账号已由后端筛选）
+    const pagination = usePagination(accounts, 10);
 
     // 历史抽屉状态
     const [historyDrawer, setHistoryDrawer] = useState({ isOpen: false, account: null });
@@ -112,28 +105,28 @@ const AccountListView = ({
                     </div>
                     <div className={`flex gap-1 p-1 rounded-xl ${darkMode ? 'bg-slate-700/50' : 'bg-slate-100'}`}>
                         <button
-                            onClick={() => { setSoldFilter('all'); pagination.resetPage(); }}
-                            className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${soldFilter === 'all'
+                            onClick={() => { setSoldStatusFilter('all'); pagination.resetPage(); }}
+                            className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${soldStatusFilter === 'all'
                                 ? (darkMode ? 'bg-slate-600 text-white shadow' : 'bg-white text-slate-800 shadow')
                                 : (darkMode ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-700')}`}
                         >
-                            全部 ({accounts.length})
+                            全部
                         </button>
                         <button
-                            onClick={() => { setSoldFilter('unsold'); pagination.resetPage(); }}
-                            className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${soldFilter === 'unsold'
+                            onClick={() => { setSoldStatusFilter('unsold'); pagination.resetPage(); }}
+                            className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${soldStatusFilter === 'unsold'
                                 ? 'bg-green-500 text-white shadow'
                                 : (darkMode ? 'text-green-400 hover:bg-green-900/30' : 'text-green-600 hover:bg-green-50')}`}
                         >
-                            未售出 ({accounts.filter(a => a.soldStatus !== 'sold').length})
+                            未售出
                         </button>
                         <button
-                            onClick={() => { setSoldFilter('sold'); pagination.resetPage(); }}
-                            className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${soldFilter === 'sold'
+                            onClick={() => { setSoldStatusFilter('sold'); pagination.resetPage(); }}
+                            className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${soldStatusFilter === 'sold'
                                 ? 'bg-red-500 text-white shadow'
                                 : (darkMode ? 'text-red-400 hover:bg-red-900/30' : 'text-red-600 hover:bg-red-50')}`}
                         >
-                            已售出 ({accounts.filter(a => a.soldStatus === 'sold').length})
+                            已售出
                         </button>
                     </div>
                 </div>
