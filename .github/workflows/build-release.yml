@@ -69,12 +69,7 @@ jobs:
       - name: Build frontend
         run: |
           cd frontend
-          echo "Current directory: $(pwd)"
-          echo "Parent directory contents:"
-          ls -la ..
           pnpm run build
-          echo "Build output:"
-          ls -la ../static
 
       - name: Build Tauri app
         env:
