@@ -46,7 +46,10 @@ jobs:
           workspaces: './src-tauri -> target'
 
       - name: Install Tauri CLI
-        run: cargo install tauri-cli --version ^2.0.0
+        run: |
+          cargo install tauri-cli --version ^2.0.0 --locked
+        env:
+          CARGO_PROFILE_RELEASE_LTO: "false"
 
       - name: Install Linux dependencies
         if: matrix.platform.os == 'ubuntu-latest'
