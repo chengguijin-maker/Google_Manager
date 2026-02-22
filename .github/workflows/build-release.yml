@@ -54,12 +54,20 @@ jobs:
       - name: Install frontend dependencies
         run: |
           cd frontend
-          pnpm install
+          pnpm install --frozen-lockfile
+
+      - name: Ensure static directory exists
+        run: mkdir -p static
 
       - name: Build frontend
         run: |
           cd frontend
+          echo "Current directory: $(pwd)"
+          echo "Parent directory contents:"
+          ls -la ..
           pnpm run build
+          echo "Build output:"
+          ls -la ../static
 
       - name: Build Tauri app
         env:
