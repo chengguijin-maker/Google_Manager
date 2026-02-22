@@ -123,6 +123,52 @@ pnpm run dev:test
 
 ---
 
+## 📦 下载与运行
+
+### 1. 下载安装包
+
+访问 [Releases 页面](https://github.com/chengguijin-maker/Google_Manager/releases) 下载对应平台的安装包：
+
+- **Windows**: MSI 或 NSIS 安装程序
+- **Linux**: DEB 包或 AppImage
+
+### 2. 设置环境变量（必需）
+
+应用启动前必须设置管理员密码：
+
+**Linux**:
+```bash
+export GOOGLE_MANAGER_ADMIN_PASSWORD="your_password"
+```
+
+**Windows (PowerShell)**:
+```powershell
+$env:GOOGLE_MANAGER_ADMIN_PASSWORD="your_password"
+```
+
+**Windows (CMD)**:
+```cmd
+set GOOGLE_MANAGER_ADMIN_PASSWORD=your_password
+```
+
+### 3. 运行应用
+
+- **Windows**: 双击运行 MSI 或 NSIS 安装程序，安装后从开始菜单启动
+- **Linux (DEB)**:
+  ```bash
+  sudo dpkg -i google-manager-linux_*.deb
+  google-manager
+  ```
+- **Linux (AppImage)**:
+  ```bash
+  chmod +x google-manager-linux_*.AppImage
+  ./google-manager-linux_*.AppImage
+  ```
+
+**注意**: 首次运行时，应用会自动生成主密钥文件 `master.key`，请妥善保管此文件。
+
+---
+
 ## 📁 项目结构
 
 ```
