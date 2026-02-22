@@ -75,11 +75,10 @@ jobs:
           pnpm run build
 
       - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0
         env:
           GOOGLE_MANAGER_ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
-        run: |
-          cd src-tauri
-          cargo tauri build --target ${{ matrix.platform.target }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload Windows artifacts
         if: matrix.platform.os == 'windows-latest'
