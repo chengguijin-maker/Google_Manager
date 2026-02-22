@@ -1,13 +1,12 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
     Users,
     UserPlus,
     ShieldCheck,
-    X,
     CheckCircle2,
-    AlertTriangle,
     Moon,
-    Sun
+    Sun,
+    LogOut
 } from 'lucide-react';
 
 // 导入服务和组件
@@ -15,40 +14,29 @@ import api from './services/api';
 import AccountListView from './components/AccountListView';
 import ImportView from './components/ImportView';
 import LoginPage from './components/LoginPage';
-
+import EditModal from './components/EditModal';
+import { normalizePhoneNumber } from './utils/phoneUtils';
 const App = () => {
     const [view, setView] = useState('list');
     const [accounts, setAccounts] = useState([]);
     const [search, setSearch] = useState('');
+    const [debouncedSearch, setDebouncedSearch] = useState('');
     const [soldStatusFilter, setSoldStatusFilter] = useState('all');
+    const [groupFilter, setGroupFilter] = useState(null);
     const [notification, setNotification] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [importing, setImporting] = useState(false);
+    const notificationTimerRef = useRef(null);
+    const latestLoadRequestIdRef = useRef(0);
 
     // Modals state
     const [editingAccount, setEditingAccount] = useState(null);
-    const [deletingId, setDeletingId] = useState(null);
-    const [twoFACode, setTwoFACode] = useState({ id: null, code: '', expiry: 0 });
 
-    // 登录状态 - 使用 localStorage 并检查7天有效期
-    const [isLoggedIn, setIsLoggedIn] = useState(() => {
-        const loginData = localStorage.getItem('loginData');
-        if (!loginData) return false;
+    // Undo state
+    const [deletedAccounts, setDeletedAccounts] = useState([]);
 
-        try {
-            const { timestamp } = JSON.parse(loginData);
-            const sevenDaysMs = 7 * 24 * 60 * 60 * 1000; // 7天毫秒数
-            const isValid = Date.now() - timestamp < sevenDaysMs;
-
-            if (!isValid) {
-                // 已过期，清除登录状态
-                localStorage.removeItem('loginData');
-                return false;
-            }
-            return true;
-        } catch {
-            return false;
-        }
-    });
+    const [isLoggedIn, setIsLoggedIn] = useState(false);
+    const [authChecking, setAuthChecking] = useState(true);
 
     // 暗色模式状态
     const [darkMode, setDarkMode] = useState(() => {
@@ -62,75 +50,148 @@ const App = () => {
         localStorage.setItem('darkMode', JSON.stringify(darkMode));
     }, [darkMode]);
 
+    useEffect(() => {
+        let mounted = true;
+        const verifySession = async () => {
+            try {
+                const result = await api.checkAuth();
+                if (!mounted) return;
+                setIsLoggedIn(Boolean(result?.success && !result?.banned));
+            } catch {
+                if (!mounted) return;
+                setIsLoggedIn(false);
+            } finally {
+                if (mounted) {
+                    setAuthChecking(false);
+                }
+            }
+        };
+        verifySession();
+        return () => {
+            mounted = false;
+        };
+    }, []);
+
+    useEffect(() => {
+        return () => {
+            if (notificationTimerRef.current) {
+                clearTimeout(notificationTimerRef.current);
+                notificationTimerRef.current = null;
+            }
+        };
+    }, []);
+
+    // 搜索防抖，避免每次按键都触发后端查询
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedSearch(search);
+        }, 250);
+        return () => clearTimeout(timer);
+    }, [search]);
+
     // --- 加载账号数据 ---
     useEffect(() => {
-        loadAccounts();
-    }, [search, soldStatusFilter]);
+        if (authChecking || !isLoggedIn) {
+            setLoading(false);
+            return;
+        }
+        loadAccounts(debouncedSearch, soldStatusFilter);
+    }, [authChecking, isLoggedIn, debouncedSearch, soldStatusFilter]);
 
-    const loadAccounts = async () => {
+    const loadAccounts = async (searchValue = search, soldStatusFilterValue = soldStatusFilter) => {
+        const requestId = ++latestLoadRequestIdRef.current;
         try {
             setLoading(true);
-            const soldStatus = soldStatusFilter === 'all' ? null : soldStatusFilter;
-            const data = await api.getAccounts(search, soldStatus);
+            const soldStatus = soldStatusFilterValue === 'all' ? null : soldStatusFilterValue;
+            const data = await api.getAccounts(searchValue, soldStatus);
+            if (requestId !== latestLoadRequestIdRef.current) return;
             setAccounts(data);
         } catch (error) {
+            if (requestId !== latestLoadRequestIdRef.current) return;
+            const message = String(error?.message || error || '');
+            if (message.includes('未登录') || message.toLowerCase().includes('unauthorized')) {
+                setIsLoggedIn(false);
+                setAccounts([]);
+                return;
+            }
             console.error('加载账号失败:', error);
             showNotification('加载账号失败', 'error');
         } finally {
+            if (requestId !== latestLoadRequestIdRef.current) return;
             setLoading(false);
         }
     };
 
-    // --- 2FA Countdown Logic ---
-    useEffect(() => {
-        let timer;
-        if (twoFACode.expiry > 0) {
-            timer = setInterval(() => {
-                setTwoFACode(prev => ({
-                    ...prev,
-                    expiry: prev.expiry - 1
-                }));
-            }, 1000);
-        } else if (twoFACode.expiry === 0 && twoFACode.id !== null) {
-            setTwoFACode({ id: null, code: '', expiry: 0 });
-        }
-        return () => clearInterval(timer);
-    }, [twoFACode.expiry, twoFACode.id]);
+    // 获取所有唯一的标签
+    const allGroups = useMemo(() => {
+        const groups = accounts
+            .map(acc => acc.groupName)
+            .filter(g => g && g.trim() !== '');
+        return [...new Set(groups)].sort();
+    }, [accounts]);
+
 
     // --- Helpers ---
     const showNotification = (msg, type = 'success') => {
         setNotification({ msg, type });
-        setTimeout(() => setNotification(null), 3000);
+
+        if (notificationTimerRef.current) {
+            clearTimeout(notificationTimerRef.current);
+        }
+
+        notificationTimerRef.current = setTimeout(() => {
+            setNotification(null);
+            notificationTimerRef.current = null;
+        }, 5000);
     };
 
-    const copyToClipboard = (text, label) => {
-        const el = document.createElement('textarea');
-        el.value = text;
-        document.body.appendChild(el);
-        el.select();
-        document.execCommand('copy');
-        document.body.removeChild(el);
+    const copyToClipboard = async (text, label) => {
+        try {
+            await navigator.clipboard.writeText(text);
+        } catch {
+            const el = document.createElement('textarea');
+            el.value = text;
+            el.style.position = 'fixed';
+            el.style.opacity = '0';
+            document.body.appendChild(el);
+            el.select();
+            document.execCommand('copy');
+            document.body.removeChild(el);
+        }
         showNotification(`已复制 ${label} 到剪切板`);
     };
 
-    const generate2FA = async (id, secret) => {
+    const handleLogout = async () => {
+        await api.logout();
+        setIsLoggedIn(false);
+        setAccounts([]);
+        setView('list');
+        setSearch('');
+        setDebouncedSearch('');
+    };
+
+    // 撤回删除
+    const undoDelete = async () => {
+        if (deletedAccounts.length === 0) return;
         try {
-            const result = await api.get2FACode(id);
-            if (result.success) {
-                setTwoFACode({ id, code: result.data.code, expiry: result.data.expiry });
-                showNotification('2FA 验证码已刷新');
+            const restoreResults = await Promise.allSettled(
+                deletedAccounts.map(acc => api.restoreAccount(acc.id))
+            );
+            const successCount = restoreResults.filter(
+                item => item.status === 'fulfilled' && item.value?.success
+            ).length;
+
+            if (successCount > 0) {
+                await loadAccounts();
+                showNotification(`已撤回 ${successCount} 个账号的删除`);
             } else {
-                // 如果后端获取失败（如无密钥），使用前端模拟
-                const mockCode = Math.floor(100000 + Math.random() * 900000).toString();
-                setTwoFACode({ id, code: mockCode, expiry: 30 });
-                showNotification('2FA 验证码已刷新（模拟）');
+                showNotification('撤回失败', 'error');
             }
         } catch (error) {
-            // 后端不可用时使用模拟
-            const mockCode = Math.floor(100000 + Math.random() * 900000).toString();
-            setTwoFACode({ id, code: mockCode, expiry: 30 });
-            showNotification('2FA 验证码已刷新');
+            console.error('撤回删除失败:', error);
+            showNotification('撤回失败', 'error');
         }
+        setDeletedAccounts([]);
     };
 
     const toggleStatus = async (id) => {
@@ -140,6 +201,8 @@ const App = () => {
                 setAccounts(accounts.map(acc =>
                     acc.id === id ? result.data : acc
                 ));
+            } else {
+                showNotification(result.message || '切换状态失败', 'error');
             }
         } catch (error) {
             console.error('切换状态失败:', error);
@@ -147,15 +210,7 @@ const App = () => {
         }
     };
 
-    const toggleSoldStatus = async (id, currentStatus) => {
-        // 如果当前是已售出状态，点击后要切换为未售出，需要二次确认
-        if (currentStatus === 'sold') {
-            const confirmed = window.confirm('确定要将该账号标记为"未售出"吗？\n\n这将撤销之前的售出记录。');
-            if (!confirmed) {
-                return;
-            }
-        }
-
+    const toggleSoldStatus = async (id) => {
         try {
             const result = await api.toggleSoldStatus(id);
             if (result.success) {
@@ -164,6 +219,8 @@ const App = () => {
                 ));
                 const status = result.data.soldStatus === 'sold' ? '已售出' : '未售出';
                 showNotification(`账号已标记为${status}`);
+            } else {
+                showNotification(result.message || '切换出售状态失败', 'error');
             }
         } catch (error) {
             console.error('切换出售状态失败:', error);
@@ -172,18 +229,27 @@ const App = () => {
     };
 
     // --- Handlers ---
-    const handleDelete = async () => {
+    const handleDelete = async (id) => {
         try {
-            const result = await api.deleteAccount(deletingId);
+            // 保存要删除的账号用于撤回
+            const accountToDelete = accounts.find(acc => acc.id === id);
+
+            const result = await api.deleteAccount(id);
             if (result.success) {
-                setAccounts(accounts.filter(acc => acc.id !== deletingId));
-                showNotification('账号已删除', 'error');
+                // 先设置 deletedAccounts，再更新 accounts
+                if (accountToDelete) {
+                    setDeletedAccounts([accountToDelete]);
+                }
+                setAccounts(prevAccounts => prevAccounts.filter(acc => acc.id !== id));
+                // 使用 setTimeout 确保状态更新后再显示通知
+                setTimeout(() => showNotification('账号已删除'), 0);
+            } else {
+                showNotification(result.message || '删除失败', 'error');
             }
         } catch (error) {
             console.error('删除失败:', error);
             showNotification('删除失败', 'error');
         }
-        setDeletingId(null);
     };
 
     const handleUpdate = async (e) => {
@@ -193,7 +259,11 @@ const App = () => {
             email: formData.get('email'),
             password: formData.get('password'),
             recovery: formData.get('recovery'),
+            phone: normalizePhoneNumber(formData.get('phone') || '') || '',
             secret: (formData.get('secret') || '').replace(/\s/g, ''),
+            regYear: formData.get('regYear'),
+            country: formData.get('country'),
+            groupName: editingAccount.groupName || '',
             remark: formData.get('remark'),
         };
 
@@ -215,25 +285,29 @@ const App = () => {
     };
 
     const handleImport = async (importedList) => {
+        if (importing) return;
+        setImporting(true);
         try {
             const result = await api.batchImport(importedList);
             if (result.success) {
-                // 重新加载账号列表
-                await loadAccounts();
+                // 导入完成后重置筛选，避免“导入后看不到数据”
                 setView('list');
+                setSearch('');
+                setSoldStatusFilter('all');
+                setGroupFilter(null);
+                await loadAccounts('', 'all');
 
-                // 显示导入结果
-                const { success_count, failed_count, failed_emails } = result.data;
-                if (failed_count > 0) {
-                    // 有重复账号
-                    const duplicateInfo = failed_emails.slice(0, 3).join('、');
-                    const moreInfo = failed_emails.length > 3 ? `等${failed_emails.length}个` : '';
+                // 显示导入结果 - 使用API返回的属性名
+                const successCount = result.successCount || 0;
+                const failCount = result.failCount || 0;
+                if (failCount > 0) {
+                    // 失败可能来自重复账号、格式问题或字段校验失败
                     showNotification(
-                        `成功导入 ${success_count} 个账号，${failed_count} 个账号已存在：${duplicateInfo}${moreInfo}`,
-                        success_count > 0 ? 'success' : 'error'
+                        `成功导入 ${successCount} 个账号，${failCount} 个账号导入失败（可能重复或格式不合法）`,
+                        successCount > 0 ? 'success' : 'error'
                     );
                 } else {
-                    showNotification(`成功导入 ${success_count} 个账号`);
+                    showNotification(`成功导入 ${successCount} 个账号`);
                 }
             } else {
                 showNotification(result.message || '导入失败', 'error');
@@ -241,19 +315,176 @@ const App = () => {
         } catch (error) {
             console.error('导入失败:', error);
             showNotification('导入失败', 'error');
+        } finally {
+            setImporting(false);
         }
     };
 
-    // 账号已经由后端筛选，不需要前端再过滤
-    const filteredAccounts = accounts;
+    // 行内编辑保存
+    const handleInlineEdit = async (id, field, value) => {
+        try {
+            const account = accounts.find(acc => acc.id === id);
+            if (!account) return false;
+
+            const editableFields = new Set(['email', 'password', 'recovery', 'phone', 'secret', 'groupName', 'remark', 'regYear', 'country']);
+            if (!editableFields.has(field)) {
+                return false;
+            }
+
+            const normalizedValue = field === 'secret'
+                ? String(value || '').replace(/\s/g, '')
+                : field === 'phone'
+                    ? (normalizePhoneNumber(value) || '')
+                : value;
+
+            const result = await api.updateAccount(id, { [field]: normalizedValue });
+            if (result.success) {
+                const updatedAccount = result.data || { ...account, [field]: normalizedValue };
+                setAccounts(prevAccounts =>
+                    prevAccounts.map(acc => (acc.id === id ? updatedAccount : acc))
+                );
+                showNotification(field + ' 已更新');
+
+                // 当 secret 字段更新时，2FA 验证码会由 AccountListView 内部自动更新
+                return true;
+            } else {
+                showNotification(result.message || '更新失败', 'error');
+                return false;
+            }
+        } catch (error) {
+            console.error('更新失败:', error);
+            showNotification('更新失败', 'error');
+            return false;
+        }
+    };
+
+    // 清空所有账号并重新导入测试数据
+    const handleClearAndReimport = async () => {
+        if (!confirm('确定要清空所有账号并重新导入测试数据吗？')) {
+            return;
+        }
+
+        try {
+            // 清空所有账号
+            await api.deleteAllAccounts();
+            showNotification('账号已清空');
+
+            // 读取测试数据文件并导入
+            const response = await fetch('/test-data.txt');
+            if (!response.ok) {
+                throw new Error('无法读取测试数据文件');
+            }
+            const testData = await response.text();
+
+            // 解析测试数据
+            const lines = testData.split('\n').filter(line => line.trim());
+            const accounts = lines.map(line => {
+                const parts = line.split('|');
+                return {
+                    email: parts[0]?.trim() || '',
+                    password: parts[1]?.trim() || '',
+                    recovery: parts[2]?.trim() || '',
+                    phone: '',
+                    secret: parts[3]?.trim() || '',
+                    regYear: '',
+                    country: '',
+                    groupName: '',
+                    remark: '',
+                };
+            });
+
+            // 批量导入
+            const result = await api.batchImport(accounts);
+            if (result.success) {
+                showNotification(`已导入 ${result.successCount} 个测试账号`);
+                await loadAccounts();
+            } else {
+                showNotification(`导入失败：${result.failedCount} 个`, 'error');
+            }
+        } catch (error) {
+            console.error('清空并重新导入失败:', error);
+            showNotification('操作失败', 'error');
+        }
+    };
+
+    // 批量删除处理
+    const handleBatchDelete = async (ids) => {
+        const idsArray = Array.from(ids);
+
+        // 先保存要删除的账号用于撤回
+        const accountsToDelete = accounts.filter(acc => idsArray.includes(acc.id));
+
+        const deletePromises = idsArray.map(id =>
+            api.deleteAccount(id)
+                .then(result => ({ id, success: result.success }))
+                .catch(error => {
+                    console.error(`删除账号 ${id} 失败:`, error);
+                    return { id, success: false, error };
+                })
+        );
+
+        const results = await Promise.allSettled(deletePromises);
+
+        // 收集成功删除的 ID
+        const successfulIds = results
+            .filter(r => r.status === 'fulfilled' && r.value.success)
+            .map(r => r.value.id);
+
+        // 更新 accounts 状态，移除已删除的账号
+        if (successfulIds.length > 0) {
+            // 保存成功删除的账号用于撤回
+            const deletedItems = accountsToDelete.filter(acc => successfulIds.includes(acc.id));
+            setDeletedAccounts(deletedItems);
+            setAccounts(prevAccounts =>
+                prevAccounts.filter(acc => !successfulIds.includes(acc.id))
+            );
+            // 使用 setTimeout 确保状态更新后再显示通知
+            setTimeout(() => showNotification(`已删除 ${successfulIds.length} 个账号`), 0);
+        }
+
+        const failedCount = results.length - successfulIds.length;
+        if (failedCount > 0) {
+            showNotification(`${failedCount} 个账号删除失败`, 'error');
+        }
+
+        return { successfulIds, failedCount };
+    };
+
+    // 账号已由后端筛选搜索和出售状态，前端额外过滤标签
+    const filteredAccounts = useMemo(() => {
+        if (!groupFilter) return accounts;
+
+        // 使用 Set 替代 array.includes() 以提高性能
+        const filterSet = new Set([groupFilter]);
+
+        return accounts.filter(acc => {
+            const tags = String(acc.groupName || '')
+                .split(/[,，\s]+/)
+                .map(tag => tag.trim())
+                .filter(Boolean);
+            // 使用 some + Set.has 替代 includes
+            return tags.some(tag => filterSet.has(tag));
+        });
+    }, [accounts, groupFilter]);
 
     const globalFontStyle = {
         fontFamily: '"Times New Roman", Times, serif',
     };
 
+    if (authChecking) {
+        return (
+            <div className={`min-h-screen flex items-center justify-center ${darkMode ? 'bg-slate-900 text-slate-100' : 'bg-slate-50 text-slate-800'}`}>
+                <div className="flex items-center gap-3 text-sm">
+                    <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
+                    <span>正在验证登录状态...</span>
+                </div>
+            </div>
+        );
+    }
+
     // 未登录时显示登录页面
     if (!isLoggedIn) {
-        return <LoginPage onLoginSuccess={() => setIsLoggedIn(true)} darkMode={darkMode} />;
+        return <LoginPage onLoginSuccess={() => setIsLoggedIn(true)} onClearAndReimport={handleClearAndReimport} darkMode={darkMode} />;
     }
 
     return (
@@ -316,6 +547,16 @@ const App = () => {
                             >
                                 {darkMode ? <Sun size={20} /> : <Moon size={20} />}
                             </button>
+                            <button
+                                onClick={handleLogout}
+                                className={`flex items-center gap-2 px-3 py-2 rounded-xl transition-all ${darkMode
+                                    ? 'bg-slate-700 text-slate-200 hover:bg-slate-600'
+                                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+                                title="退出登录"
+                            >
+                                <LogOut size={16} />
+                                <span className="text-sm font-medium">退出</span>
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -329,18 +570,22 @@ const App = () => {
                         setSearch={setSearch}
                         soldStatusFilter={soldStatusFilter}
                         setSoldStatusFilter={setSoldStatusFilter}
+                        groupFilter={groupFilter}
+                        setGroupFilter={setGroupFilter}
+                        allGroups={allGroups}
                         copyToClipboard={copyToClipboard}
-                        generate2FA={generate2FA}
-                        twoFACode={twoFACode}
                         toggleStatus={toggleStatus}
                         toggleSoldStatus={toggleSoldStatus}
                         onEdit={setEditingAccount}
-                        onDelete={setDeletingId}
+                        onDelete={handleDelete}
+                        onBatchDelete={handleBatchDelete}
+                        onInlineEdit={handleInlineEdit}
+                        onRefreshAccounts={() => loadAccounts()}
                         loading={loading}
                         darkMode={darkMode}
                     />
                 ) : (
-                    <ImportView onImport={handleImport} onCancel={() => setView('list')} darkMode={darkMode} />
+                    <ImportView onImport={handleImport} onCancel={() => setView('list')} importing={importing} darkMode={darkMode} />
                 )}
             </main>
 
@@ -351,80 +596,24 @@ const App = () => {
                     }`}>
                     <CheckCircle2 size={20} />
                     <span className="font-medium">{notification.msg}</span>
+                    {deletedAccounts.length > 0 && notification.type === 'success' && (
+                        <button
+                            onClick={undoDelete}
+                            className="ml-2 px-3 py-1 bg-white/20 hover:bg-white/30 rounded-lg text-sm font-semibold transition-all"
+                        >
+                            撤回
+                        </button>
+                    )}
                 </div>
             )}
 
             {/* Edit Modal */}
-            {editingAccount && (
-                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <div
-                        className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
-                        <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                            <h3 className="text-xl font-bold text-slate-800">编辑账号信息</h3>
-                            <button onClick={() => setEditingAccount(null)} className="text-slate-400 hover:text-slate-600">
-                                <X size={24} />
-                            </button>
-                        </div>
-                        <form onSubmit={handleUpdate} className="p-6 space-y-4">
-                            <div className="grid grid-cols-1 gap-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-500 mb-1">邮箱账号</label>
-                                    <input name="email" defaultValue={editingAccount.email} required
-                                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all" />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-500 mb-1">登录密码</label>
-                                    <input name="password" defaultValue={editingAccount.password} required
-                                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all" />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-500 mb-1">恢复邮箱</label>
-                                    <input name="recovery" defaultValue={editingAccount.recovery} required
-                                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all" />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-500 mb-1">2FA 密钥</label>
-                                    <input name="secret" defaultValue={editingAccount.secret}
-                                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all" />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-500 mb-1">备注信息</label>
-                                    <input name="remark" defaultValue={editingAccount.remark} placeholder="例如：推特绑定、备用机登录等"
-                                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all" />
-                                </div>
-                            </div>
-                            <div className="flex gap-3 pt-4">
-                                <button type="button" onClick={() => setEditingAccount(null)} className="flex-1 py-3 border
-                            border-slate-200 text-slate-600 rounded-xl font-medium hover:bg-slate-50
-                            transition-all">取消</button>
-                                <button type="submit"
-                                    className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all">确认保存</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
+            <EditModal
+                account={editingAccount}
+                onClose={() => setEditingAccount(null)}
+                onSubmit={handleUpdate}
+            />
 
-            {/* Delete Confirmation Modal */}
-            {deletingId && (
-                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <div
-                        className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-8 text-center animate-in zoom-in-95 duration-200">
-                        <div
-                            className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                            <AlertTriangle size={32} />
-                        </div>
-                        <h3 className="text-xl font-bold text-slate-800 mb-2">确认删除？</h3>
-                        <p className="text-slate-500 mb-8 text-sm">此操作不可撤销，账号信息将从本地库中永久移除。</p>
-                        <div className="flex gap-3">
-                            <button onClick={() => setDeletingId(null)} className="flex-1 py-3 bg-slate-100 text-slate-600 rounded-xl
-                        font-medium hover:bg-slate-200 transition-all">取消</button>
-                            <button onClick={handleDelete}
-                                className="flex-1 py-3 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 shadow-lg shadow-red-200 transition-all">立即删除</button>
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 };

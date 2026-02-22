@@ -1,11 +1,10 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
-
 // https://vitejs.dev/config/
 export default defineConfig({
     plugins: [react()],
-    // 构建输出到 Flask 的 static 目录
+    // 构建输出到 Tauri 的 static 目录
     build: {
         outDir: path.resolve(__dirname, '../static'),
         emptyOutDir: true,
@@ -13,10 +12,10 @@ export default defineConfig({
     // 开发服务器配置
     server: {
         port: 5173,
-        // 代理 API 请求到 Flask 后端（Tauri 模式下不需要）
+        // 代理 API 请求到 Rust HTTP 测试服务器（Tauri 模式下不需要）
         proxy: {
             '/api': {
-                target: 'http://localhost:8002',
+                target: 'http://localhost:3001',
                 changeOrigin: true,
             }
         }

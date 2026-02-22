@@ -1,4 +1,4 @@
-.PHONY: help install dev build run clean test
+.PHONY: help install dev build clean test test-server rust-check rust-check-test-server
 
 # Default target
 .DEFAULT_GOAL := help
@@ -15,44 +15,38 @@ help: ## Display this help message
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(GREEN)%-15s$(RESET) %s\n", $$1, $$2}'
 	@echo ""
 
-install: ## Install all dependencies (Python venv + backend + frontend)
-	@echo "$(CYAN)Creating Python virtual environment...$(RESET)"
-	python3 -m venv venv
-	@echo "$(CYAN)Installing backend dependencies...$(RESET)"
-	./venv/bin/pip install --upgrade pip
-	./venv/bin/pip install -r requirements.txt
+install: ## Install frontend dependencies
 	@echo "$(CYAN)Installing frontend dependencies...$(RESET)"
-	cd frontend && npm install
+	cd frontend && pnpm install
 	@echo "$(GREEN)Installation complete!$(RESET)"
 
-dev: ## Start both frontend and backend development servers
-	@echo "$(CYAN)Starting development servers...$(RESET)"
-	@echo "$(YELLOW)Backend: http://localhost:8002$(RESET)"
-	@echo "$(YELLOW)Frontend: http://localhost:5173$(RESET)"
-	@echo "$(YELLOW)Press Ctrl+C to stop both servers$(RESET)"
-	@echo ""
-	@trap 'kill 0' SIGINT; \
-	./venv/bin/python run.py & \
-	cd frontend && npm run dev & \
-	wait
+dev: ## Start Tauri development mode
+	@echo "$(CYAN)Starting Tauri dev mode...$(RESET)"
+	cd src-tauri && cargo tauri dev
 
 build: ## Build frontend for production
 	@echo "$(CYAN)Building frontend...$(RESET)"
-	cd frontend && npm run build
-	@echo "$(GREEN)Build complete! Output in frontend/dist/$(RESET)"
+	cd frontend && pnpm run build
+	@echo "$(GREEN)Build complete!$(RESET)"
 
-run: ## Start backend server only
-	@echo "$(CYAN)Starting backend server on http://localhost:8002...$(RESET)"
-	./venv/bin/python run.py
+test-server: ## Start Rust HTTP test server on port 3001 (without GUI dependencies)
+	@echo "$(CYAN)Starting Rust HTTP test server on http://localhost:3001 (skip GUI dependency compilation)...$(RESET)"
+	cd src-tauri && cargo run --no-default-features --features test-server -- --test-server --port 3001
+
+rust-check: ## Quick Rust compile check (desktop default features)
+	@echo "$(CYAN)Running cargo check (quick)...$(RESET)"
+	cd src-tauri && cargo check
+
+rust-check-test-server: ## Rust compile check with HTTP test-server feature
+	@echo "$(CYAN)Running cargo check with test-server feature...$(RESET)"
+	cd src-tauri && cargo check --no-default-features --features test-server
 
 clean: ## Clean dependencies and build artifacts
 	@echo "$(CYAN)Cleaning project...$(RESET)"
-	rm -rf venv
 	rm -rf frontend/node_modules
 	rm -rf frontend/dist
-	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
-	find . -type f -name "*.pyc" -delete
 	@echo "$(GREEN)Clean complete!$(RESET)"
 
-test: ## Run tests (placeholder for future implementation)
-	@echo "$(YELLOW)Test command not yet implemented$(RESET)"
+test: ## Run all unit tests
+	@echo "$(CYAN)Running unit tests...$(RESET)"
+	pnpm run test:parallel:acceptance

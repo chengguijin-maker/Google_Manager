@@ -1,4 +1,16 @@
 {
+	"type": "module",
+	"scripts": {
+		"test": "bash -lc \"cd frontend && pnpm test -- --run && cd ../src-tauri && cargo test\"",
+		"test:unit": "bash -lc \"cd frontend && pnpm test -- --run\"",
+		"test:rust": "cd src-tauri && cargo test",
+		"test:rust:test-server": "cd src-tauri && cargo test --no-default-features --features test-server",
+		"test:parallel:acceptance": "bash -lc \"set +e; (cd frontend && CI=1 pnpm test -- --run) & frontend_pid=\\$!; (cd src-tauri && cargo test) & rust_pid=\\$!; wait \\$frontend_pid; frontend_code=\\$?; wait \\$rust_pid; rust_code=\\$?; echo frontend_unit=\\$frontend_code; echo rust_unit=\\$rust_code; if [ \\$frontend_code -eq 0 ] && [ \\$rust_code -eq 0 ]; then exit 0; fi; exit 1\"",
+		"check:rust:quick": "cd src-tauri && cargo check",
+		"check:rust:test-server": "cd src-tauri && cargo check --no-default-features --features test-server",
+		"dev:test": "bash -lc \"cd frontend && VITE_USE_HTTP=true pnpm run dev\"",
+		"server:test": "cd src-tauri && cargo run --no-default-features --features test-server -- --test-server --port 3001"
+	},
 	"devDependencies": {
 		"@tauri-apps/cli": "^2.10.0"
 	},

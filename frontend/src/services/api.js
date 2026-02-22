@@ -1,221 +1,185 @@
-import { invoke } from '@tauri-apps/api/core';
+import { getAdapter } from './adapters/index.ts';
 
-// 生成盐值：时间戳减去2003，再 MD5 哈希
-const generateSalt = () => {
-    const timestamp = Math.floor(Date.now() / 1000); // 当前时间戳（秒）
-    const saltBase = String(timestamp - 2003);
-    // 使用 Web Crypto API 的替代方案：简单的 MD5 实现
-    return md5(saltBase);
-};
-
-// 简单的 MD5 实现（用于盐值生成）
-const md5 = (string) => {
-    function md5cycle(x, k) {
-        var a = x[0], b = x[1], c = x[2], d = x[3];
-        a = ff(a, b, c, d, k[0], 7, -680876936);
-        d = ff(d, a, b, c, k[1], 12, -389564586);
-        c = ff(c, d, a, b, k[2], 17, 606105819);
-        b = ff(b, c, d, a, k[3], 22, -1044525330);
-        a = ff(a, b, c, d, k[4], 7, -176418897);
-        d = ff(d, a, b, c, k[5], 12, 1200080426);
-        c = ff(c, d, a, b, k[6], 17, -1473231341);
-        b = ff(b, c, d, a, k[7], 22, -45705983);
-        a = ff(a, b, c, d, k[8], 7, 1770035416);
-        d = ff(d, a, b, c, k[9], 12, -1958414417);
-        c = ff(c, d, a, b, k[10], 17, -42063);
-        b = ff(b, c, d, a, k[11], 22, -1990404162);
-        a = ff(a, b, c, d, k[12], 7, 1804603682);
-        d = ff(d, a, b, c, k[13], 12, -40341101);
-        c = ff(c, d, a, b, k[14], 17, -1502002290);
-        b = ff(b, c, d, a, k[15], 22, 1236535329);
-        a = gg(a, b, c, d, k[1], 5, -165796510);
-        d = gg(d, a, b, c, k[6], 9, -1069501632);
-        c = gg(c, d, a, b, k[11], 14, 643717713);
-        b = gg(b, c, d, a, k[0], 20, -373897302);
-        a = gg(a, b, c, d, k[5], 5, -701558691);
-        d = gg(d, a, b, c, k[10], 9, 38016083);
-        c = gg(c, d, a, b, k[15], 14, -660478335);
-        b = gg(b, c, d, a, k[4], 20, -405537848);
-        a = gg(a, b, c, d, k[9], 5, 568446438);
-        d = gg(d, a, b, c, k[14], 9, -1019803690);
-        c = gg(c, d, a, b, k[3], 14, -187363961);
-        b = gg(b, c, d, a, k[8], 20, 1163531501);
-        a = gg(a, b, c, d, k[13], 5, -1444681467);
-        d = gg(d, a, b, c, k[2], 9, -51403784);
-        c = gg(c, d, a, b, k[7], 14, 1735328473);
-        b = gg(b, c, d, a, k[12], 20, -1926607734);
-        a = hh(a, b, c, d, k[5], 4, -378558);
-        d = hh(d, a, b, c, k[8], 11, -2022574463);
-        c = hh(c, d, a, b, k[11], 16, 1839030562);
-        b = hh(b, c, d, a, k[14], 23, -35309556);
-        a = hh(a, b, c, d, k[1], 4, -1530992060);
-        d = hh(d, a, b, c, k[4], 11, 1272893353);
-        c = hh(c, d, a, b, k[7], 16, -155497632);
-        b = hh(b, c, d, a, k[10], 23, -1094730640);
-        a = hh(a, b, c, d, k[13], 4, 681279174);
-        d = hh(d, a, b, c, k[0], 11, -358537222);
-        c = hh(c, d, a, b, k[3], 16, -722521979);
-        b = hh(b, c, d, a, k[6], 23, 76029189);
-        a = hh(a, b, c, d, k[9], 4, -640364487);
-        d = hh(d, a, b, c, k[12], 11, -421815835);
-        c = hh(c, d, a, b, k[15], 16, 530742520);
-        b = hh(b, c, d, a, k[2], 23, -995338651);
-        a = ii(a, b, c, d, k[0], 6, -198630844);
-        d = ii(d, a, b, c, k[7], 10, 1126891415);
-        c = ii(c, d, a, b, k[14], 15, -1416354905);
-        b = ii(b, c, d, a, k[5], 21, -57434055);
-        a = ii(a, b, c, d, k[12], 6, 1700485571);
-        d = ii(d, a, b, c, k[3], 10, -1894986606);
-        c = ii(c, d, a, b, k[10], 15, -1051523);
-        b = ii(b, c, d, a, k[1], 21, -2054922799);
-        a = ii(a, b, c, d, k[8], 6, 1873313359);
-        d = ii(d, a, b, c, k[15], 10, -30611744);
-        c = ii(c, d, a, b, k[6], 15, -1560198380);
-        b = ii(b, c, d, a, k[13], 21, 1309151649);
-        a = ii(a, b, c, d, k[4], 6, -145523070);
-        d = ii(d, a, b, c, k[11], 10, -1120210379);
-        c = ii(c, d, a, b, k[2], 15, 718787259);
-        b = ii(b, c, d, a, k[9], 21, -343485551);
-        x[0] = add32(a, x[0]);
-        x[1] = add32(b, x[1]);
-        x[2] = add32(c, x[2]);
-        x[3] = add32(d, x[3]);
-    }
-    function cmn(q, a, b, x, s, t) {
-        a = add32(add32(a, q), add32(x, t));
-        return add32((a << s) | (a >>> (32 - s)), b);
-    }
-    function ff(a, b, c, d, x, s, t) { return cmn((b & c) | ((~b) & d), a, b, x, s, t); }
-    function gg(a, b, c, d, x, s, t) { return cmn((b & d) | (c & (~d)), a, b, x, s, t); }
-    function hh(a, b, c, d, x, s, t) { return cmn(b ^ c ^ d, a, b, x, s, t); }
-    function ii(a, b, c, d, x, s, t) { return cmn(c ^ (b | (~d)), a, b, x, s, t); }
-    function md51(s) {
-        var n = s.length, state = [1732584193, -271733879, -1732584194, 271733878], i;
-        for (i = 64; i <= s.length; i += 64) { md5cycle(state, md5blk(s.substring(i - 64, i))); }
-        s = s.substring(i - 64);
-        var tail = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-        for (i = 0; i < s.length; i++) tail[i >> 2] |= s.charCodeAt(i) << ((i % 4) << 3);
-        tail[i >> 2] |= 0x80 << ((i % 4) << 3);
-        if (i > 55) { md5cycle(state, tail); for (i = 0; i < 16; i++) tail[i] = 0; }
-        tail[14] = n * 8;
-        md5cycle(state, tail);
-        return state;
-    }
-    function md5blk(s) {
-        var md5blks = [], i;
-        for (i = 0; i < 64; i += 4) {
-            md5blks[i >> 2] = s.charCodeAt(i) + (s.charCodeAt(i + 1) << 8) + (s.charCodeAt(i + 2) << 16) + (s.charCodeAt(i + 3) << 24);
-        }
-        return md5blks;
-    }
-    var hex_chr = '0123456789abcdef'.split('');
-    function rhex(n) {
-        var s = '', j = 0;
-        for (; j < 4; j++) s += hex_chr[(n >> (j * 8 + 4)) & 0x0F] + hex_chr[(n >> (j * 8)) & 0x0F];
-        return s;
-    }
-    function hex(x) { for (var i = 0; i < x.length; i++) x[i] = rhex(x[i]); return x.join(''); }
-    function add32(a, b) { return (a + b) & 0xFFFFFFFF; }
-    return hex(md51(string));
-};
+// 获取适配器实例（自动检测 Tauri/HTTP 模式）
+const adapter = getAdapter();
+const getErrorMessage = (error) => error instanceof Error ? error.message : String(error);
 
 const api = {
-    // 登录验证（桌面应用无需实际登录）
+    // 登录验证
     async login(password) {
-        // 桌面应用不需要登录认证，直接返回成功
-        return { success: true, message: 'Desktop app does not require login' };
+        try {
+            const result = await adapter.login(password);
+            return {
+                success: Boolean(result?.success),
+                message: result?.message || (result?.success ? '登录成功' : '登录失败'),
+                banned: Boolean(result?.banned || result?.blocked),
+                sessionToken: result?.sessionToken,
+                expiresAtEpochSecs: result?.expiresAtEpochSecs,
+            };
+        } catch (error) {
+            console.error('Failed to login:', error);
+            return {
+                success: false,
+                message: getErrorMessage(error),
+                banned: false,
+            };
+        }
     },
 
-    // 检查封禁状态（桌面应用无需检查）
+    // 检查封禁状态
     async checkAuth() {
-        // 桌面应用不需要封禁检查，始终返回正常状态
-        return { success: true, blocked: false };
+        try {
+            const result = await adapter.checkAuth();
+            return {
+                success: Boolean(result?.success),
+                banned: Boolean(result?.banned || result?.blocked),
+                message: result?.message,
+                sessionToken: result?.sessionToken,
+                expiresAtEpochSecs: result?.expiresAtEpochSecs,
+            };
+        } catch (error) {
+            console.error('Failed to check auth:', error);
+            return {
+                success: false,
+                banned: false,
+                message: getErrorMessage(error),
+            };
+        }
+    },
+
+    // 退出登录
+    async logout() {
+        try {
+            await adapter.logout();
+            return { success: true };
+        } catch (error) {
+            console.error('Failed to logout:', error);
+            return { success: false, message: getErrorMessage(error) };
+        }
     },
 
     // 获取所有账号
     async getAccounts(search = '', soldStatus = null) {
         try {
-            const accounts = await invoke('get_accounts', {
-                search: search || null,
-                sold_status: soldStatus || null
-            });
+            const accounts = await adapter.getAccounts(search || undefined, soldStatus || undefined);
             return accounts;
         } catch (error) {
             console.error('Failed to get accounts:', error);
-            return [];
+            throw error;
+        }
+    },
+
+    // 获取回收站账号
+    async getDeletedAccounts() {
+        try {
+            const accounts = await adapter.getDeletedAccounts();
+            return { success: true, data: accounts };
+        } catch (error) {
+            console.error('Failed to get deleted accounts:', error);
+            return { success: false, data: [], message: getErrorMessage(error) };
         }
     },
 
     // 批量导入账号
     async batchImport(accounts) {
         try {
-            const result = await invoke('batch_import', { accounts });
+            const result = await adapter.batchImport(accounts);
             return {
                 success: true,
-                successCount: result.success_count,
-                failCount: result.fail_count
+                successCount: result.successCount,
+                failCount: result.failCount
             };
         } catch (error) {
             console.error('Failed to batch import:', error);
-            return { success: false, message: error.toString() };
+            return { success: false, message: getErrorMessage(error) };
         }
     },
 
     // 创建账号
     async createAccount(account) {
         try {
-            const newAccount = await invoke('create_account', { account });
+            const newAccount = await adapter.createAccount(account);
             return { success: true, data: newAccount };
         } catch (error) {
             console.error('Failed to create account:', error);
-            return { success: false, message: error.toString() };
+            return { success: false, message: getErrorMessage(error) };
         }
     },
 
     // 更新账号
     async updateAccount(id, data) {
         try {
-            const account = await invoke('update_account', {
-                id,
-                account: data
-            });
+            const account = await adapter.updateAccount(id, data);
             return { success: true, data: account };
         } catch (error) {
             console.error('Failed to update account:', error);
-            return { success: false, message: error.toString() };
+            return { success: false, message: getErrorMessage(error) };
         }
     },
 
     // 删除账号
     async deleteAccount(id) {
         try {
-            await invoke('delete_account', { id });
+            await adapter.deleteAccount(id);
             return { success: true };
         } catch (error) {
             console.error('Failed to delete account:', error);
-            return { success: false, message: error.toString() };
+            return { success: false, message: getErrorMessage(error) };
+        }
+    },
+
+    // 恢复账号
+    async restoreAccount(id) {
+        try {
+            const account = await adapter.restoreAccount(id);
+            return { success: true, data: account };
+        } catch (error) {
+            console.error('Failed to restore account:', error);
+            return { success: false, message: getErrorMessage(error) };
+        }
+    },
+
+    // 永久删除回收站账号
+    async purgeAccount(id) {
+        try {
+            await adapter.purgeAccount(id);
+            return { success: true };
+        } catch (error) {
+            console.error('Failed to purge account:', error);
+            return { success: false, message: getErrorMessage(error) };
+        }
+    },
+
+    // 清空回收站
+    async purgeAllDeleted() {
+        try {
+            const count = await adapter.purgeAllDeleted();
+            return { success: true, data: count };
+        } catch (error) {
+            console.error('Failed to purge deleted accounts:', error);
+            return { success: false, message: getErrorMessage(error) };
         }
     },
 
     // 切换状态
     async toggleStatus(id) {
         try {
-            const account = await invoke('toggle_status', { id });
+            const account = await adapter.toggleStatus(id);
             return { success: true, data: account };
         } catch (error) {
             console.error('Failed to toggle status:', error);
-            return { success: false, message: error.toString() };
+            return { success: false, message: getErrorMessage(error) };
         }
     },
 
     // 切换出售状态
     async toggleSoldStatus(id) {
         try {
-            const account = await invoke('toggle_sold_status', { id });
+            const account = await adapter.toggleSoldStatus(id);
             return { success: true, data: account };
         } catch (error) {
             console.error('Failed to toggle sold status:', error);
-            return { success: false, message: error.toString() };
+            return { success: false, message: getErrorMessage(error) };
         }
     },
 
@@ -223,7 +187,7 @@ const api = {
     async get2FACode(id) {
         try {
             // 首先获取账号信息以获得 secret
-            const accounts = await invoke('get_accounts', { search: null });
+            const accounts = await adapter.getAccounts();
             const account = accounts.find(acc => acc.id === id);
 
             if (!account || !account.secret) {
@@ -234,9 +198,7 @@ const api = {
             }
 
             // 使用 secret 生成 TOTP
-            const result = await invoke('generate_totp', {
-                secret: account.secret
-            });
+            const result = await adapter.generateTotp(account.secret);
 
             return {
                 success: true,
@@ -245,20 +207,84 @@ const api = {
             };
         } catch (error) {
             console.error('Failed to generate 2FA code:', error);
-            return { success: false, message: error.toString() };
+            return { success: false, message: getErrorMessage(error) };
         }
     },
 
     // 获取账号修改历史记录
     async getAccountHistory(id) {
         try {
-            const history = await invoke('get_account_history', {
-                accountId: id
-            });
+            const history = await adapter.getAccountHistory(id);
             return { success: true, data: history };
         } catch (error) {
             console.error('Failed to get account history:', error);
-            return { success: false, message: error.toString(), data: [] };
+            return { success: false, message: getErrorMessage(error), data: [] };
+        }
+    },
+
+    // 导出数据库为 SQL
+    async exportDatabaseSql() {
+        try {
+            const sqlContent = await adapter.exportDatabaseSql();
+            return { success: true, data: sqlContent };
+        } catch (error) {
+            console.error('Failed to export database:', error);
+            return { success: false, message: getErrorMessage(error) };
+        }
+    },
+
+    // 删除所有账号
+    async deleteAllAccounts() {
+        try {
+            const result = await adapter.deleteAllAccounts();
+            return { success: true, data: result };
+        } catch (error) {
+            console.error('Failed to delete all accounts:', error);
+            return { success: false, message: getErrorMessage(error) };
+        }
+    },
+
+    // 创建数据库备份
+    async createBackup(reason = 'manual') {
+        try {
+            const path = await adapter.createBackup(reason);
+            return { success: true, data: path };
+        } catch (error) {
+            console.error('Failed to create backup:', error);
+            return { success: false, message: getErrorMessage(error) };
+        }
+    },
+
+    // 列出备份
+    async listBackups() {
+        try {
+            const backups = await adapter.listBackups();
+            return { success: true, data: backups };
+        } catch (error) {
+            console.error('Failed to list backups:', error);
+            return { success: false, data: [], message: getErrorMessage(error) };
+        }
+    },
+
+    // 恢复备份
+    async restoreBackup(backupName) {
+        try {
+            await adapter.restoreBackup(backupName);
+            return { success: true };
+        } catch (error) {
+            console.error('Failed to restore backup:', error);
+            return { success: false, message: getErrorMessage(error) };
+        }
+    },
+
+    // 导出账号为文本
+    async exportAccountsText(accountIds, search, soldStatus, config) {
+        try {
+            const textContent = await adapter.exportAccountsText(accountIds, search, soldStatus, config);
+            return { success: true, data: textContent };
+        } catch (error) {
+            console.error('Failed to export accounts:', error);
+            return { success: false, message: getErrorMessage(error) };
         }
     }
 };

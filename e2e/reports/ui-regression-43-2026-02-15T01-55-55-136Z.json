@@ -1,0 +1,13 @@
+{
+  "generatedAt": "2026-02-15T01:55:55.167Z",
+  "runPrefix": "ui43_mln3g6m8",
+  "baseUrl": "http://127.0.0.1:5173",
+  "apiUrl": "http://127.0.0.1:3001/api",
+  "passCount": 0,
+  "failCount": 0,
+  "total": 0,
+  "results": [],
+  "perf": null,
+  "consoleErrors": [],
+  "apiRequestCount": 0
+}

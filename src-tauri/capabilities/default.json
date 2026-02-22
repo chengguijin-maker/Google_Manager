@@ -6,6 +6,17 @@
     "main"
   ],
   "permissions": [
-    "core:default"
+    "core:default",
+    "dialog:default",
+    "dialog:allow-save",
+    "fs:default",
+    {
+      "identifier": "fs:allow-write-text-file",
+      "allow": [
+        {
+          "path": "$APPDATA/googlemanager/**"
+        }
+      ]
+    }
   ]
 }
