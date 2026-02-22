@@ -57,7 +57,11 @@ jobs:
           pnpm install --frozen-lockfile
 
       - name: Ensure static directory exists
-        run: mkdir -p static
+        run: |
+          if (-not (Test-Path static)) {
+            New-Item -ItemType Directory -Path static
+          }
+        shell: pwsh
 
       - name: Build frontend
         run: |
