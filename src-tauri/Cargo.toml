@@ -17,21 +17,31 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 [build-dependencies]
 tauri-build = { version = "2.5.4", features = [] }
 
+[features]
+default = ["desktop"]
+desktop = ["tauri/native-tls"]
+test-server = ["actix-web", "actix-cors", "tokio"]
+
 [dependencies]
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 log = "0.4"
 tauri = { version = "2.10.0", features = [] }
 tauri-plugin-log = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
 rusqlite = { version = "0.31", features = ["bundled"] }
 dirs = "5"
 totp-rs = { version = "5", features = ["gen_secret"] }
 chrono = { version = "0.4", features = ["serde"] }
 rand = "0.8"
+subtle = "2.5"
 aes-gcm = "0.10"
 base64 = "0.22"
-subtle = "2.5"
 sha2 = "0.10"
+actix-web = { version = "4", optional = true }
+actix-cors = { version = "0.7", optional = true }
+tokio = { version = "1", features = ["full"], optional = true }
 
 [dev-dependencies]
 tempfile = "3"

@@ -10,7 +10,7 @@ TOKEN=$2
 echo "=========================================="
 echo "Google Manager - Release 创建脚本"
 echo "=========================================="
-echo ""
+echo ""qing
 
 # 检查是否在正确的目录
 if [ ! -f "src-tauri/Cargo.toml" ]; then
