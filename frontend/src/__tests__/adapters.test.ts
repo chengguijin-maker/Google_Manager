@@ -78,9 +78,31 @@ describe('getAdapter 自动检测逻辑', () => {
     expect(adapter).toBeInstanceOf(HttpAdapter);
   });
 
-  it('应该在没有 window.__TAURI__ 时选择 HttpAdapter', () => {
+  it('应该在仅有 window.__TAURI_INTERNALS__ 时选择 TauriAdapter', () => {
+    delete (window as any).__TAURI__;
+    Object.defineProperty(window, '__TAURI_INTERNALS__', {
+      value: {},
+      writable: true,
+      configurable: true,
+    });
+
+    // 清除环境变量和 URL 参数
+    delete (import.meta.env as any).VITE_USE_HTTP;
+    Object.defineProperty(window, 'location', {
+      value: { search: '' },
+      writable: true,
+      configurable: true,
+    });
+
+    resetAdapter();
+    const adapter = getAdapter();
+    expect(adapter).toBeInstanceOf(TauriAdapter);
+  });
+
+  it('应该在没有 window.__TAURI__ 和 __TAURI_INTERNALS__ 时选择 HttpAdapter', () => {
     // 移除 Tauri 环境
     delete (window as any).__TAURI__;
+    delete (window as any).__TAURI_INTERNALS__;
 
     // 清除环境变量和 URL 参数
     delete (import.meta.env as any).VITE_USE_HTTP;

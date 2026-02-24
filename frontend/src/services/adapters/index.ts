@@ -6,7 +6,10 @@ import { HttpAdapter } from './http-adapter';
 
 // 检测是否在 Tauri 环境中运行
 const isTauri = (): boolean => {
-  return typeof window !== 'undefined' && '__TAURI__' in window;
+  return (
+    typeof window !== 'undefined' &&
+    ('__TAURI__' in window || '__TAURI_INTERNALS__' in window)
+  );
 };
 
 // 检测是否强制使用 HTTP 模式（用于测试）
