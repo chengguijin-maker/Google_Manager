@@ -209,7 +209,7 @@ const AccountListView = ({
         return sorted;
     }, [accounts, sortConfig]);
 
-    const pagination = usePagination(sortedAccounts, 10);
+    const pagination = usePagination(sortedAccounts, 100);
 
     // 2FA 验证码：只处理当前页可见账号
     const { twoFACodes: visibleTwoFACodes } = useTwoFA(pagination.paginatedData);

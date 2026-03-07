@@ -3,10 +3,10 @@ import { useState, useMemo, useEffect } from 'react';
 /**
  * 分页逻辑 Hook
  * @param {Array} data - 数据数组
- * @param {number} initialPageSize - 初始每页条数，默认10
+ * @param {number} initialPageSize - 初始每页条数，默认100
  * @returns {Object} 分页状态和方法
  */
-const usePagination = (data, initialPageSize = 10) => {
+const usePagination = (data, initialPageSize = 100) => {
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize, setPageSize] = useState(initialPageSize);
 

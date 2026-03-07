@@ -68,7 +68,7 @@ const Pagination = ({
         return pages;
     };
 
-    const pageSizeOptions = [10, 20, 50];
+    const pageSizeOptions = [100, 200, 500];
 
     return (
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-6 py-4 bg-slate-50/50 border-t border-slate-100">
