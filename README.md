@@ -105,21 +105,39 @@ GOOGLE_MANAGER_ADMIN_PASSWORD=your_secure_password
 - `GOOGLE_MANAGER_MASTER_KEY` 是可选的，用于加密数据库中的敏感信息
 - 如果不设置主密钥，系统会自动生成并保存到 `master.key` 文件
 
-4. **启动开发模式**
+4. **启动项目**
 
 ```bash
-# 桌面开发模式（推荐）
+# 桌面开发模式（推荐用于功能开发）
 make dev
 
-# 或 HTTP 测试服务器模式
+# 浏览器 HTTP 模式（不启动桌面窗口）
 make test-server
 # 然后在另一个终端：
 pnpm run dev:test
+
+# Linux 用户服务模式（推荐用于长期运行 / 外网接入）
+cd src-tauri && cargo build --no-default-features --features test-server
+mkdir -p ~/.config/systemd/user
+install -m 0644 systemd/local-services.service ~/.config/systemd/user/local-services.service
+systemctl --user daemon-reload
+systemctl --user enable --now local-services.service
 ```
 
 5. **访问应用**
 
-桌面模式会自动打开应用窗口，HTTP 模式访问 `http://localhost:5173`
+| 方式 | 地址 | 说明 |
+|---|---|---|
+| 桌面模式 | 自动打开窗口 | 适合本机开发调试 |
+| 本机浏览器 | `http://127.0.0.1:5173/gm/` | `start-services.sh` 会拉起前端与后端，并默认挂在 `/gm/` |
+| 局域网浏览器 | `http://<服务器IP>:5173/gm/` | 前端默认监听 `0.0.0.0`，并使用 `/gm/` 路径 |
+| 公网访问 | `https://hy.2oranges.cn/gm/` | `443` 为统一入口，通过路径访问 Google Manager |
+
+**当前防火墙口径**:
+- `ufw` 已启用
+- `80/tcp`、`443/tcp` 对公网开放
+- `3001`、`5173` 当前仅放行给 `172.0.0.0/8`
+- 当前已通过 `Nginx` 将 `https://hy.2oranges.cn/gm/` 反代到本机前端，并将 `https://hy.2oranges.cn/gm/api/` 反代到本机后端
 
 ---
 
@@ -193,8 +211,10 @@ Google_Manager/
 │   │   ├── totp.rs       # TOTP 生成
 │   │   └── http_server.rs # HTTP 服务器
 │   └── Cargo.toml
+├── systemd/              # 用户服务单元模板
+├── start-services.sh     # 前后端聚合启动与健康检查
 ├── static/               # 前端构建产物
-├── Makefile             # 构建脚本
+├── Makefile              # 构建脚本
 └── README.md
 ```
 
@@ -224,7 +244,48 @@ make test-server
 pnpm run dev:test
 ```
 
-然后访问 `http://localhost:5173`
+访问方式：
+- 本机：`http://127.0.0.1:5173/gm/`
+- 局域网：`http://<服务器IP>:5173/gm/`
+- 公网：`https://hy.2oranges.cn/gm/`
+
+### Linux 用户服务模式（默认长期运行方式）
+
+适合需要常驻运行、由 `systemd --user` 托管、并配合反向代理提供外网访问的场景。
+
+```bash
+# 1) 构建 HTTP 后端二进制
+cd src-tauri
+cargo build --no-default-features --features test-server
+cd ..
+
+# 2) 安装并启动用户服务
+mkdir -p ~/.config/systemd/user
+install -m 0644 systemd/local-services.service ~/.config/systemd/user/local-services.service
+systemctl --user daemon-reload
+systemctl --user enable --now local-services.service
+
+# 3) 查看状态与日志
+systemctl --user status local-services.service
+journalctl --user -u local-services.service -f
+```
+
+默认行为：
+- `start-services.sh` 会同时启动后端 `3001` 与前端 `5173`
+- 前端默认监听 `0.0.0.0`，并使用 `GOOGLE_MANAGER_BASE_PATH=/gm/`
+- 用户服务默认注入 `VITE_API_URL=/gm/api` 与 HMR 反代参数
+- 日志默认写入 `/run/user/$UID/google-manager/`
+- 如需自定义，可设置 `GOOGLE_MANAGER_FRONTEND_HOST`、`GOOGLE_MANAGER_FRONTEND_PORT`、`GOOGLE_MANAGER_BACKEND_PORT`、`GOOGLE_MANAGER_BASE_PATH`
+
+### 外网访问建议
+
+| 方式 | 建议级别 | 说明 |
+|---|---|---|
+| 直接暴露 `5173/3001` | 不推荐 | 适合临时内网调试，不适合长期公网暴露 |
+| 仅开放 `80/443` | 推荐 | 通过 `Nginx` / `Caddy` 反代到本机服务 |
+| 前端走 `/gm/`、接口走同源 `/gm/api/` | 推荐 | 便于统一鉴权、路径隔离与减少跨域问题 |
+
+详细配置见：`docs/nginx-https-gm-routing.md`
 
 ### 构建
 

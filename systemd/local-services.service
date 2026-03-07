@@ -1,0 +1,23 @@
+[Unit]
+Description=本地开发服务入口（Google Manager 等）
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/bin/bash -lc 'exec /home/eric/code/Google_Manager/start-services.sh'
+WorkingDirectory=/home/eric/code/Google_Manager
+Environment=GOOGLE_MANAGER_ADMIN_PASSWORD=admin123
+Environment=GOOGLE_MANAGER_BASE_PATH=/gm/
+Environment=VITE_API_URL=/gm/api
+Environment=GOOGLE_MANAGER_HMR_HOST=hy.2oranges.cn
+Environment=GOOGLE_MANAGER_HMR_PROTOCOL=wss
+Environment=GOOGLE_MANAGER_HMR_CLIENT_PORT=443
+Environment=GOOGLE_MANAGER_HMR_PATH=/gm/
+Restart=on-failure
+RestartSec=3
+KillMode=control-group
+TimeoutStartSec=45
+TimeoutStopSec=15
+
+[Install]
+WantedBy=default.target

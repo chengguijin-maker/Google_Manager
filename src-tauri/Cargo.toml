@@ -18,7 +18,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2.5.4", features = [] }
 
 [features]
-default = ["desktop"]
+default = ["test-server"]
 desktop = ["tauri/native-tls"]
 test-server = ["actix-web", "actix-cors", "tokio"]
 
