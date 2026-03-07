@@ -5,14 +5,13 @@ import api from '../services/api';
 /**
  * 登录页面组件
  */
-const LoginPage = ({ onLoginSuccess, onClearAndReimport, darkMode }) => {
+const LoginPage = ({ onLoginSuccess, darkMode }) => {
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const [banned, setBanned] = useState(false);
     const [banMessage, setBanMessage] = useState('');
     const [showPassword, setShowPassword] = useState(false);
-    const canUseDangerAction = import.meta.env.DEV || import.meta.env.MODE === 'test';
 
     // 检查是否被封禁
     useEffect(() => {
@@ -110,15 +109,15 @@ const LoginPage = ({ onLoginSuccess, onClearAndReimport, darkMode }) => {
                             </div>
                         </div>
 
-                        {/* 登录按钮和测试按钮 */}
+                        {/* 登录按钮 */}
                         <div className="flex gap-2">
                             <button
                                 type="submit"
                                 disabled={loading}
-                                className={`py-4 rounded-xl font-bold text-white transition-all ${canUseDangerAction ? 'flex-1' : 'w-full'} ${loading
+                                className={`w-full py-4 rounded-xl font-bold text-white transition-all ${loading
                                     ? 'bg-slate-400 cursor-not-allowed'
                                     : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-lg shadow-blue-200'}`}
-                        >
+                            >
                                 {loading ? (
                                     <span className="flex items-center justify-center gap-2">
                                         <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
@@ -128,15 +127,6 @@ const LoginPage = ({ onLoginSuccess, onClearAndReimport, darkMode }) => {
                                     '进入系统'
                                 )}
                             </button>
-                            {canUseDangerAction && (
-                                <button
-                                    type="button"
-                                    onClick={onClearAndReimport}
-                                    className="flex-1 py-4 px-6 rounded-xl font-bold text-white bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 to-orange-700 shadow-lg transition-all"
-                                >
-                                    清空并导入测试
-                                </button>
-                            )}
                         </div>
 
                         {/* 提示信息 */}

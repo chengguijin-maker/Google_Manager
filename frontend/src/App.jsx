@@ -358,55 +358,6 @@ const App = () => {
         }
     };
 
-    // 清空所有账号并重新导入测试数据
-    const handleClearAndReimport = async () => {
-        if (!confirm('确定要清空所有账号并重新导入测试数据吗？')) {
-            return;
-        }
-
-        try {
-            // 清空所有账号
-            await api.deleteAllAccounts();
-            showNotification('账号已清空');
-
-            // 读取测试数据文件并导入
-            const response = await fetch('/test-data.txt');
-            if (!response.ok) {
-                throw new Error('无法读取测试数据文件');
-            }
-            const testData = await response.text();
-
-            // 解析测试数据
-            const lines = testData.split('\n').filter(line => line.trim());
-            const accounts = lines.map(line => {
-                const parts = line.split('|');
-                return {
-                    email: parts[0]?.trim() || '',
-                    password: parts[1]?.trim() || '',
-                    recovery: parts[2]?.trim() || '',
-                    phone: '',
-                    secret: parts[3]?.trim() || '',
-                    regYear: '',
-                    country: '',
-                    groupName: '',
-                    remark: '',
-                };
-            });
-
-            // 批量导入
-            const result = await api.batchImport(accounts);
-            if (result.success) {
-                showNotification(`已导入 ${result.successCount} 个测试账号`);
-                await loadAccounts();
-            } else {
-                showNotification(`导入失败：${result.failedCount} 个`, 'error');
-            }
-        } catch (error) {
-            console.error('清空并重新导入失败:', error);
-            showNotification('操作失败', 'error');
-        }
-    };
-
     // 批量删除处理
     const handleBatchDelete = async (ids) => {
         const idsArray = Array.from(ids);
@@ -484,7 +435,7 @@ const App = () => {
 
     // 未登录时显示登录页面
     if (!isLoggedIn) {
-        return <LoginPage onLoginSuccess={() => setIsLoggedIn(true)} onClearAndReimport={handleClearAndReimport} darkMode={darkMode} />;
+        return <LoginPage onLoginSuccess={() => setIsLoggedIn(true)} darkMode={darkMode} />;
     }
 
     return (
