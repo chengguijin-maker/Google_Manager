@@ -325,7 +325,31 @@ export class HttpAdapter implements ApiAdapter {
     soldStatus: string | null,
     config: ExportConfig,
   ): Promise<string> {
-    throw new Error('HTTP 模式不支持账号导出功能，请使用 Tauri 桌面模式');
+    const result = await this.requestData<string>('/accounts/export', {
+      method: 'POST',
+      body: JSON.stringify({
+        account_ids: accountIds,
+        search,
+        sold_status: soldStatus,
+        config: {
+          separator: config.separator,
+          fields: config.fields,
+          include_stats: config.includeStats,
+          account_order: {
+            type: config.accountOrder?.type,
+            field: config.accountOrder?.field,
+            direction: config.accountOrder?.direction,
+          },
+          category_sort: {
+            type: config.categorySort?.type,
+            field: config.categorySort?.field,
+            direction: config.categorySort?.direction,
+          },
+          category_label_template: config.categoryLabelTemplate,
+        },
+      }),
+    });
+    return result || '';
   }
 
   async deleteAllAccounts(): Promise<number> {

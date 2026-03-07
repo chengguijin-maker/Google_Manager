@@ -502,18 +502,38 @@ const AccountListView = ({
             const { accountIds, searchParam, soldStatusParam } = buildExportRequestParams(exportDialog.mode);
             const normalizedConfig = normalizeExportConfig(config);
             const result = await api.exportAccountsText(accountIds, searchParam, soldStatusParam, normalizedConfig);
-            if (!result.success) { alert('导出失败: ' + result.message); return; }
+
+            // TauriAdapter 返回 {success, data}，HttpAdapter 直接返回字符串
+            const textContent = typeof result === 'string' ? result : (result?.data ?? '');
+            if (typeof result === 'object' && result !== null && !result.success) {
+                alert('导出失败: ' + result.message);
+                return;
+            }
 
             const dateStr = new Date().toISOString().split('T')[0];
-            const filePath = await save({
-                defaultPath: `accounts_export_${dateStr}.txt`,
-                filters: [{ name: 'Text Files', extensions: ['txt'] }]
-            });
 
-            if (filePath) {
-                await writeTextFile(filePath, result.data);
+            if (window.__TAURI__) {
+                const filePath = await save({
+                    defaultPath: `accounts_export_${dateStr}.txt`,
+                    filters: [{ name: 'Text Files', extensions: ['txt'] }]
+                });
+                if (filePath) {
+                    await writeTextFile(filePath, textContent);
+                    setExportDialog({ isOpen: false, mode: 'all' });
+                    alert('账号导出成功！');
+                }
+            } else {
+                // HTTP 模式：用浏览器原生 Blob 下载
+                const blob = new Blob([textContent], { type: 'text/plain;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `accounts_export_${dateStr}.txt`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
                 setExportDialog({ isOpen: false, mode: 'all' });
-                alert('账号导出成功！');
             }
         } catch (error) {
             console.error('导出账号失败:', error);

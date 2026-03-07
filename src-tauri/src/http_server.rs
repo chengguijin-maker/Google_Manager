@@ -1,4 +1,4 @@
-use crate::database::{self, AccountInput, Database};
+use crate::database::{self, AccountInput, Database, ExportConfig, build_export_accounts_output};
 use actix_cors::Cors;
 use actix_web::{http::header, web, App, HttpRequest, HttpResponse, HttpServer, Responder};
 use serde::{Deserialize, Serialize};
@@ -62,6 +62,14 @@ pub struct TotpRequest {
 #[derive(Deserialize)]
 pub struct LoginRequest {
     pub password: String,
+}
+
+#[derive(Deserialize)]
+pub struct ExportAccountsRequest {
+    pub account_ids: Option<Vec<i64>>,
+    pub search: Option<String>,
+    pub sold_status: Option<String>,
+    pub config: ExportConfig,
 }
 
 #[derive(Deserialize)]
@@ -432,6 +440,31 @@ async fn logout_handler(req: HttpRequest) -> impl Responder {
     }
 }
 
+async fn export_accounts_handler(
+    req: HttpRequest,
+    db: web::Data<Arc<Database>>,
+    body: web::Json<ExportAccountsRequest>,
+) -> impl Responder {
+    if let Err(e) = ensure_authorized(&req) {
+        return e;
+    }
+    let conn = match db.0.lock() {
+        Ok(c) => c,
+        Err(e) => return err_response(e.to_string()),
+    };
+    let accounts = match database::query_accounts_for_export(
+        &conn,
+        body.account_ids.as_deref(),
+        body.search.as_deref(),
+        body.sold_status.as_deref(),
+    ) {
+        Ok(a) => a,
+        Err(e) => return err_response(e),
+    };
+    let text = build_export_accounts_output(accounts, &body.config);
+    success_response(text, "导出成功")
+}
+
 pub async fn start_http_server(db: Arc<Database>, port: u16) -> std::io::Result<()> {
     println!("Starting HTTP server on port {}", port);
 
@@ -439,6 +472,7 @@ pub async fn start_http_server(db: Arc<Database>, port: u16) -> std::io::Result<
         let cors = Cors::default()
             .allowed_origin("http://localhost:5173")
             .allowed_origin("http://127.0.0.1:5173")
+            .allowed_origin("https://hy.2oranges.cn")
             .allowed_methods(vec!["GET", "POST", "PUT", "DELETE", "PATCH"])
             .allowed_headers(vec![
                 actix_web::http::header::CONTENT_TYPE,
@@ -501,8 +535,9 @@ pub async fn start_http_server(db: Arc<Database>, port: u16) -> std::io::Result<
             .route("/api/auth/login", web::post().to(login_handler))
             .route("/api/auth/check", web::get().to(check_auth_handler))
             .route("/api/auth/logout", web::post().to(logout_handler))
+            .route("/api/accounts/export", web::post().to(export_accounts_handler))
     })
-    .bind(("127.0.0.1", port))?
+    .bind(("0.0.0.0", port))?
     .run()
     .await
 }
