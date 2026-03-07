@@ -682,15 +682,15 @@ describe('AccountListView 组件', () => {
   });
 
   describe('分页功能', () => {
-    it('显示分页组件（账号数量大于10时）', () => {
-      const manyAccounts = Array.from({ length: 15 }, (_, i) => buildMockAccount(i + 1));
+    it('显示分页组件（账号数量大于100时）', () => {
+      const manyAccounts = Array.from({ length: 101 }, (_, i) => buildMockAccount(i + 1));
 
       render(<AccountListView {...defaultProps} accounts={manyAccounts} />);
 
-      // 应该只显示前10个账号
+      // 默认每页显示100个账号
       expect(screen.getByText('test1@gmail.com')).toBeInTheDocument();
-      expect(screen.getByText('test10@gmail.com')).toBeInTheDocument();
-      expect(screen.queryByText('test11@gmail.com')).not.toBeInTheDocument();
+      expect(screen.getByText('test100@gmail.com')).toBeInTheDocument();
+      expect(screen.queryByText('test101@gmail.com')).not.toBeInTheDocument();
     });
   });
 
