@@ -77,6 +77,7 @@ const createDefaultProps = (overrides = {}) => ({
 describe('AccountListView 导出弹窗与参数', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.__TAURI__ = { invoke: vi.fn() };
     api.exportAccountsText.mockResolvedValue({ success: true, data: 'mock export result' });
     api.exportDatabaseSql.mockResolvedValue({ success: true, data: 'mock sql' });
     save.mockResolvedValue(null);
@@ -188,5 +189,74 @@ describe('AccountListView 导出弹窗与参数', () => {
         }),
       );
     });
+  });
+
+  it('HTTP 模式导出时支持直接消费字符串结果并触发浏览器下载', async () => {
+    const user = userEvent.setup();
+    const props = createDefaultProps({ search: 'first' });
+    const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
+    const originalTauri = window.__TAURI__;
+    const originalCreateObjectURL = URL.createObjectURL;
+    const originalRevokeObjectURL = URL.revokeObjectURL;
+    const originalCreateElement = document.createElement.bind(document);
+    const anchorClick = vi.fn();
+
+    window.__TAURI__ = undefined;
+    Object.defineProperty(URL, 'createObjectURL', {
+      configurable: true,
+      writable: true,
+      value: vi.fn(() => 'blob:mock-export-url'),
+    });
+    Object.defineProperty(URL, 'revokeObjectURL', {
+      configurable: true,
+      writable: true,
+      value: vi.fn(),
+    });
+
+    const createElementSpy = vi.spyOn(document, 'createElement').mockImplementation((tagName, options) => {
+      const element = originalCreateElement(tagName, options);
+      if (String(tagName).toLowerCase() === 'a') {
+        element.click = anchorClick;
+      }
+      return element;
+    });
+
+    api.exportAccountsText.mockResolvedValue('http export content');
+
+    try {
+      render(<AccountListView {...props} />);
+
+      await user.click(screen.getByRole('button', { name: '导出账号' }));
+      await user.click(screen.getByRole('button', { name: '导出' }));
+
+      await waitFor(() => {
+        expect(api.exportAccountsText).toHaveBeenCalledWith(
+          null,
+          'first',
+          null,
+          expect.any(Object),
+        );
+        expect(URL.createObjectURL).toHaveBeenCalledTimes(1);
+        expect(anchorClick).toHaveBeenCalledTimes(1);
+        expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:mock-export-url');
+      });
+
+      expect(save).not.toHaveBeenCalled();
+      expect(alertSpy).not.toHaveBeenCalled();
+      expect(screen.queryByRole('button', { name: '导出' })).not.toBeInTheDocument();
+    } finally {
+      createElementSpy.mockRestore();
+      Object.defineProperty(URL, 'createObjectURL', {
+        configurable: true,
+        writable: true,
+        value: originalCreateObjectURL,
+      });
+      Object.defineProperty(URL, 'revokeObjectURL', {
+        configurable: true,
+        writable: true,
+        value: originalRevokeObjectURL,
+      });
+      window.__TAURI__ = originalTauri;
+    }
   });
 });
