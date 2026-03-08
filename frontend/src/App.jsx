@@ -456,22 +456,22 @@ const App = () => {
 
             <nav className={`${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'} border-b sticky top-0 z-30 transition-colors duration-300`}>
                 <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="flex justify-between h-16 items-center">
-                        <div className="flex items-center gap-2">
+                    <div className="flex flex-col gap-3 py-3 sm:h-16 sm:flex-row sm:items-center sm:justify-between sm:py-0">
+                        <div className="flex min-w-0 items-center gap-2">
                             <div className="bg-blue-600 p-2 rounded-lg">
                                 <ShieldCheck className="text-white w-6 h-6" />
                             </div>
                             <span
-                                className={`text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r ${darkMode ? 'from-blue-400 to-indigo-400' : 'from-blue-600 to-indigo-600'}`}>
+                                className={`truncate text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r sm:text-xl ${darkMode ? 'from-blue-400 to-indigo-400' : 'from-blue-600 to-indigo-600'}`}>
                                 GoogleManager
                             </span>
                         </div>
 
-                        <div className="flex items-center gap-4">
+                        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-4">
 
-                            <div className={`flex gap-1 ${darkMode ? 'bg-slate-700' : 'bg-slate-100'} p-1 rounded-xl`}>
+                            <div className={`grid w-full grid-cols-2 gap-1 ${darkMode ? 'bg-slate-700' : 'bg-slate-100'} p-1 rounded-xl sm:w-auto sm:flex`}>
                                 <button onClick={() => setView('list')}
-                                    className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${view === 'list' ?
+                                    className={`flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm transition-all sm:px-4 sm:text-base ${view === 'list' ?
                                         (darkMode ? 'bg-slate-600 shadow-sm text-blue-400' : 'bg-white shadow-sm text-blue-600')
                                         : (darkMode ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-700')}`}
                                 >
@@ -479,7 +479,7 @@ const App = () => {
                                     <span className="font-medium">账号列表</span>
                                 </button>
                                 <button onClick={() => setView('import')}
-                                    className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${view === 'import' ?
+                                    className={`flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm transition-all sm:px-4 sm:text-base ${view === 'import' ?
                                         (darkMode ? 'bg-slate-600 shadow-sm text-blue-400' : 'bg-white shadow-sm text-blue-600')
                                         : (darkMode ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-700')}`}
                                 >
@@ -488,26 +488,28 @@ const App = () => {
                                 </button>
                             </div>
 
-                            {/* 暗色模式切换按钮 */}
-                            <button
-                                onClick={() => setDarkMode(!darkMode)}
-                                className={`p-2.5 rounded-xl transition-all ${darkMode
-                                    ? 'bg-slate-700 text-yellow-400 hover:bg-slate-600'
-                                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-                                title={darkMode ? '切换亮色模式' : '切换暗色模式'}
-                            >
-                                {darkMode ? <Sun size={20} /> : <Moon size={20} />}
-                            </button>
-                            <button
-                                onClick={handleLogout}
-                                className={`flex items-center gap-2 px-3 py-2 rounded-xl transition-all ${darkMode
-                                    ? 'bg-slate-700 text-slate-200 hover:bg-slate-600'
-                                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
-                                title="退出登录"
-                            >
-                                <LogOut size={16} />
-                                <span className="text-sm font-medium">退出</span>
-                            </button>
+                            <div className="flex items-center justify-end gap-2 sm:gap-4">
+                                {/* 暗色模式切换按钮 */}
+                                <button
+                                    onClick={() => setDarkMode(!darkMode)}
+                                    className={`p-2.5 rounded-xl transition-all ${darkMode
+                                        ? 'bg-slate-700 text-yellow-400 hover:bg-slate-600'
+                                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                                    title={darkMode ? '切换亮色模式' : '切换暗色模式'}
+                                >
+                                    {darkMode ? <Sun size={20} /> : <Moon size={20} />}
+                                </button>
+                                <button
+                                    onClick={handleLogout}
+                                    className={`flex items-center gap-2 px-3 py-2 rounded-xl transition-all ${darkMode
+                                        ? 'bg-slate-700 text-slate-200 hover:bg-slate-600'
+                                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+                                    title="退出登录"
+                                >
+                                    <LogOut size={16} />
+                                    <span className="text-sm font-medium">退出</span>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
