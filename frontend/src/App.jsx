@@ -16,6 +16,7 @@ import ImportView from './components/ImportView';
 import LoginPage from './components/LoginPage';
 import EditModal from './components/EditModal';
 import { normalizePhoneNumber } from './utils/phoneUtils';
+import { normalizeMultiValueValue, splitGroupNameValues } from './utils/multiValueField';
 const App = () => {
     const [view, setView] = useState('list');
     const [accounts, setAccounts] = useState([]);
@@ -124,10 +125,8 @@ const App = () => {
 
     // 获取所有唯一的标签
     const allGroups = useMemo(() => {
-        const groups = accounts
-            .map(acc => acc.groupName)
-            .filter(g => g && g.trim() !== '');
-        return [...new Set(groups)].sort();
+        const groups = accounts.flatMap(acc => splitGroupNameValues(acc.groupName));
+        return [...new Set(groups)].sort((left, right) => left.localeCompare(right, 'zh-CN', { sensitivity: 'base' }));
     }, [accounts]);
 
 
@@ -263,8 +262,8 @@ const App = () => {
             secret: (formData.get('secret') || '').replace(/\s/g, ''),
             regYear: formData.get('regYear'),
             country: formData.get('country'),
-            groupName: editingAccount.groupName || '',
-            remark: formData.get('remark'),
+            groupName: normalizeMultiValueValue('groupName', formData.get('groupName') ?? editingAccount.groupName ?? ''),
+            remark: normalizeMultiValueValue('remark', formData.get('remark') ?? ''),
         };
 
         try {
@@ -335,7 +334,9 @@ const App = () => {
                 ? String(value || '').replace(/\s/g, '')
                 : field === 'phone'
                     ? (normalizePhoneNumber(value) || '')
-                : value;
+                    : (field === 'groupName' || field === 'remark')
+                        ? normalizeMultiValueValue(field, value)
+                        : value;
 
             const result = await api.updateAccount(id, { [field]: normalizedValue });
             if (result.success) {
@@ -409,11 +410,7 @@ const App = () => {
         const filterSet = new Set([groupFilter]);
 
         return accounts.filter(acc => {
-            const tags = String(acc.groupName || '')
-                .split(/[,，\s]+/)
-                .map(tag => tag.trim())
-                .filter(Boolean);
-            // 使用 some + Set.has 替代 includes
+            const tags = splitGroupNameValues(acc.groupName);
             return tags.some(tag => filterSet.has(tag));
         });
     }, [accounts, groupFilter]);

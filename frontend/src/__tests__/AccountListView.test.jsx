@@ -235,6 +235,21 @@ describe('AccountListView 组件', () => {
       expect(screen.getByText('测试账号1')).toBeInTheDocument();
       expect(screen.getByText('测试账号2')).toBeInTheDocument();
     });
+    it('标签和备注支持按行展示多值内容', () => {
+      const multilineAccounts = [{
+        ...mockAccounts[0],
+        groupName: '工作\n重点',
+        remark: '第一条备注\n第二条备注',
+      }];
+
+      render(<AccountListView {...defaultProps} accounts={multilineAccounts} />);
+
+      expect(screen.getByText('工作')).toBeInTheDocument();
+      expect(screen.getByText('重点')).toBeInTheDocument();
+      expect(screen.getByText('第一条备注')).toBeInTheDocument();
+      expect(screen.getByText('第二条备注')).toBeInTheDocument();
+    });
+
 
     it('显示导入时间', () => {
       render(<AccountListView {...defaultProps} />);
@@ -542,8 +557,24 @@ describe('AccountListView 组件', () => {
       await new Promise(resolve => setTimeout(resolve, DOUBLE_CLICK_SETTLE_MS));
 
       expect(defaultProps.copyToClipboard).not.toHaveBeenCalled();
-      expect(screen.getByPlaceholderText('输入标签，多个标签用逗号分隔')).toBeInTheDocument();
+      expect(screen.getByPlaceholderText('每行一个标签，支持逗号或换行粘贴')).toBeInTheDocument();
     });
+    it('双击备注进入多行编辑器，并显示添加一行操作', async () => {
+      const user = userEvent.setup();
+      const accountsWithRemark = [{
+        ...mockAccounts[0],
+        remark: '第一条备注\n第二条备注',
+      }];
+
+      render(<AccountListView {...defaultProps} accounts={accountsWithRemark} />);
+
+      await user.dblClick(screen.getByText('第一条备注'));
+      await new Promise(resolve => setTimeout(resolve, DOUBLE_CLICK_SETTLE_MS));
+
+      expect(screen.getByPlaceholderText('每行一条备注，便于逐条查看和编辑')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: '+ 添加一行' })).toBeInTheDocument();
+    });
+
 
     it('双击2FA验证码进入编辑时不触发复制', async () => {
       const user = userEvent.setup();
@@ -569,6 +600,7 @@ describe('AccountListView 组件', () => {
         phone: '',
         secret: '',
         groupName: '',
+        remark: '',
       }];
 
       render(<AccountListView {...defaultProps} accounts={emptyValueAccounts} />);
@@ -593,7 +625,15 @@ describe('AccountListView 组件', () => {
       expect(emptyTagTrigger.tagName).toBe('BUTTON');
       await user.dblClick(emptyTagTrigger);
       await new Promise(resolve => setTimeout(resolve, DOUBLE_CLICK_SETTLE_MS));
-      expect(screen.getByPlaceholderText('输入标签，多个标签用逗号分隔')).toBeInTheDocument();
+      expect(screen.getByPlaceholderText('每行一个标签，支持逗号或换行粘贴')).toBeInTheDocument();
+
+      fireEvent.keyDown(screen.getByPlaceholderText('每行一个标签，支持逗号或换行粘贴'), { key: 'Escape' });
+
+      const emptyRemarkTrigger = screen.getByTitle('双击添加备注');
+      expect(emptyRemarkTrigger.tagName).toBe('BUTTON');
+      await user.dblClick(emptyRemarkTrigger);
+      await new Promise(resolve => setTimeout(resolve, DOUBLE_CLICK_SETTLE_MS));
+      expect(screen.getByPlaceholderText('每行一条备注，便于逐条查看和编辑')).toBeInTheDocument();
     });
 
     it('刚编辑的新值可立即在同列其他行的建议中复用', async () => {

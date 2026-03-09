@@ -196,11 +196,57 @@ describe('useInlineEdit Hook', () => {
       });
 
       act(() => {
-        result.current.handleKeyDown({ key: 'Enter' });
+        result.current.handleKeyDown({ key: 'Enter', preventDefault: vi.fn() });
       });
 
       expect(onInlineEdit).toHaveBeenCalledWith(1, 'email', 'new@gmail.com');
       expect(result.current.editingCell).toBeNull();
+    });
+
+    it('多行字段按 Enter 时保留编辑，按 Ctrl+Enter 才保存', () => {
+      const { result } = renderHook(() => useInlineEdit({ onInlineEdit, allGroups }));
+      const mockEvent = { stopPropagation: vi.fn() };
+
+      act(() => {
+        result.current.handleCellDoubleClick(mockEvent, 1, 'remark', '第一条');
+      });
+
+      act(() => {
+        result.current.setEditValue('第一条\n第二条');
+      });
+
+      act(() => {
+        result.current.handleKeyDown({ key: 'Enter', preventDefault: vi.fn() });
+      });
+
+      expect(onInlineEdit).not.toHaveBeenCalled();
+      expect(result.current.editingCell).not.toBeNull();
+
+      act(() => {
+        result.current.handleKeyDown({ key: 'Enter', ctrlKey: true, preventDefault: vi.fn() });
+      });
+
+      expect(onInlineEdit).toHaveBeenCalledWith(1, 'remark', '第一条\n第二条');
+      expect(result.current.editingCell).toBeNull();
+    });
+
+    it('手机号保存前会先做标准化', () => {
+      const { result } = renderHook(() => useInlineEdit({ onInlineEdit, allGroups }));
+      const mockEvent = { stopPropagation: vi.fn() };
+
+      act(() => {
+        result.current.handleCellDoubleClick(mockEvent, 1, 'phone', '+86 138 0000 1111');
+      });
+
+      act(() => {
+        result.current.setEditValue('+86 138 1234 5678');
+      });
+
+      act(() => {
+        result.current.handleKeyDown({ key: 'Enter', preventDefault: vi.fn() });
+      });
+
+      expect(onInlineEdit).toHaveBeenCalledWith(1, 'phone', '+8613812345678');
     });
 
     it('按 Escape 键取消编辑', () => {
@@ -216,7 +262,7 @@ describe('useInlineEdit Hook', () => {
       });
 
       act(() => {
-        result.current.handleKeyDown({ key: 'Escape' });
+        result.current.handleKeyDown({ key: 'Escape', preventDefault: vi.fn() });
       });
 
       expect(onInlineEdit).not.toHaveBeenCalled();
@@ -278,10 +324,9 @@ describe('useInlineEdit Hook', () => {
         result.current.selectSuggestion('工作');
       });
 
-      // 验证已调用保存
-      expect(onInlineEdit).toHaveBeenCalledWith(1, 'groupName', '工作');
-      // 验证编辑状态已清空
-      expect(result.current.editingCell).toBeNull();
+      expect(onInlineEdit).not.toHaveBeenCalled();
+      expect(result.current.editingCell).not.toBeNull();
+      expect(result.current.editValue).toBe('工\n工作');
     });
 
     it('值未变化时失焦不触发保存（避免无效更新）', () => {
@@ -324,7 +369,7 @@ describe('useInlineEdit Hook', () => {
   });
 
   describe('selectSuggestion - 选择标签建议', () => {
-    it('选择建议后立即保存', () => {
+    it('多行字段选择建议后追加到当前编辑值', () => {
       const { result } = renderHook(() => useInlineEdit({ onInlineEdit, allGroups }));
       const mockEvent = { stopPropagation: vi.fn() };
 
@@ -336,27 +381,25 @@ describe('useInlineEdit Hook', () => {
         result.current.selectSuggestion('工作');
       });
 
-      expect(onInlineEdit).toHaveBeenCalledWith(1, 'groupName', '工作');
-      expect(result.current.editingCell).toBeNull();
-      expect(result.current.showSuggestions).toBe(false);
+      expect(onInlineEdit).not.toHaveBeenCalled();
+      expect(result.current.editingCell).toEqual(expect.objectContaining({ accountId: 1, field: 'groupName' }));
+      expect(result.current.editValue).toBe('工\n工作');
+      expect(result.current.showSuggestions).toBe(true);
     });
 
-    it('选择建议时设置竞态保护标志', () => {
+    it('选择重复建议时不会重复追加', () => {
       const { result } = renderHook(() => useInlineEdit({ onInlineEdit, allGroups }));
       const mockEvent = { stopPropagation: vi.fn() };
 
       act(() => {
-        result.current.handleCellDoubleClick(mockEvent, 1, 'groupName', '工');
+        result.current.handleCellDoubleClick(mockEvent, 1, 'groupName', '工作');
       });
 
-      // selectSuggestion 内部会设置 isSelectingGroupSuggestionRef.current = true
-      // 并在 cancelEdit 中重置为 false
       act(() => {
         result.current.selectSuggestion('工作');
       });
 
-      // 验证已取消编辑状态
-      expect(result.current.editingCell).toBeNull();
+      expect(result.current.editValue).toBe('工作');
     });
   });
 
@@ -432,7 +475,7 @@ describe('useInlineEdit Hook', () => {
         });
 
         act(() => {
-          result.current.handleKeyDown({ key: 'Enter' });
+          result.current.handleKeyDown({ key: 'Enter', preventDefault: vi.fn() });
         });
       }).not.toThrow();
     });
