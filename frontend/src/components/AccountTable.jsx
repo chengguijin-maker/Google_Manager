@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { splitPhoneParts, formatCountryDisplay } from '../utils/phoneUtils';
+import { isMultilineField, splitMultiValueLines } from '../utils/multiValueField';
 
 const splitDateTime = (value) => {
     const raw = String(value || '').trim();
@@ -137,30 +138,148 @@ const AccountTable = ({
         );
     };
 
-    const renderEditingInput = (placeholder = '') => (
-        <div className="relative">
-            <input
-                ref={inputRef}
-                type="text"
-                value={editValue}
-                onChange={(e) => setEditValue(e.target.value)}
-                onKeyDown={onKeyDown}
-                onBlur={onEditableInputBlur}
-                onMouseDown={(e) => e.stopPropagation()}
-                className={`w-full h-8 px-2 text-sm rounded-md border border-blue-500 outline-none shadow-sm ${darkMode
-                    ? 'bg-slate-700 text-slate-100'
-                    : 'bg-white text-slate-800'}`}
-                placeholder={placeholder}
-            />
-            {renderSuggestionPanel()}
-        </div>
-    );
+    const wrappedPreviewStyle = {
+        display: '-webkit-box',
+        WebkitBoxOrient: 'vertical',
+        WebkitLineClamp: 2,
+        overflow: 'hidden',
+        whiteSpace: 'normal',
+        wordBreak: 'break-all',
+    };
+
+    const focusEditorToEnd = () => {
+        queueMicrotask(() => {
+            if (!inputRef.current || typeof inputRef.current.setSelectionRange !== 'function') return;
+            const length = String(inputRef.current.value || '').length;
+            inputRef.current.focus();
+            inputRef.current.setSelectionRange(length, length);
+        });
+    };
+
+    const appendLineForEditing = () => {
+        setEditValue((previous) => {
+            const current = String(previous || '');
+            if (!current.trim()) return current;
+            return current.endsWith('\n') ? current : `${current}\n`;
+        });
+        focusEditorToEnd();
+    };
+
+    const singleLineEditorConfig = {
+        default: { minWidth: 220, maxWidth: 520, minChars: 18, align: 'left' },
+        email: { minWidth: 280, maxWidth: 680, minChars: 28, align: 'left' },
+        password: { minWidth: 240, maxWidth: 560, minChars: 22, align: 'left' },
+        recovery: { minWidth: 280, maxWidth: 680, minChars: 28, align: 'left' },
+        secret: { minWidth: 260, maxWidth: 620, minChars: 24, align: 'right' },
+        phone: { minWidth: 280, maxWidth: 620, minChars: 24, align: 'right' },
+        regYear: { minWidth: 120, maxWidth: 180, minChars: 10, align: 'right' },
+        country: { minWidth: 160, maxWidth: 320, minChars: 12, align: 'right' },
+    };
+
+    const getSingleLineEditorStyle = (field, currentValue, placeholder = '') => {
+        const config = singleLineEditorConfig[field] || singleLineEditorConfig.default;
+        const contentLength = Math.max(
+            String(currentValue || '').trim().length,
+            String(placeholder || '').trim().length,
+            config.minChars,
+        );
+        const widthPx = Math.min(Math.max(contentLength * 9 + 44, config.minWidth), config.maxWidth);
+
+        return {
+            top: '-4px',
+            ...(config.align === 'right' ? { right: 0 } : { left: 0 }),
+            width: `${widthPx}px`,
+            minWidth: `${config.minWidth}px`,
+            maxWidth: `min(calc(100vw - 32px), ${config.maxWidth}px)`,
+        };
+    };
+
+    const renderEditingInput = (field, placeholder = '') => {
+        const multiline = isMultilineField(field);
+
+        if (multiline) {
+            return (
+                <div className="relative z-20">
+                    <div className={`min-w-full w-[min(42vw,520px)] rounded-xl border px-2.5 py-2 shadow-xl ${darkMode
+                        ? 'bg-slate-800 border-blue-500/70'
+                        : 'bg-white border-blue-400'}`}>
+                        <textarea
+                            ref={inputRef}
+                            value={editValue}
+                            onChange={(e) => setEditValue(e.target.value)}
+                            onKeyDown={onKeyDown}
+                            onBlur={onEditableInputBlur}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            rows={4}
+                            className={`w-full min-h-[96px] resize-none overflow-hidden rounded-lg border px-3 py-2 text-sm leading-6 outline-none ${darkMode
+                                ? 'bg-slate-700 border-slate-600 text-slate-100'
+                                : 'bg-slate-50 border-slate-200 text-slate-800'}`}
+                            placeholder={placeholder}
+                        />
+                        <div className="mt-2 flex items-center justify-between gap-3">
+                            <button
+                                type="button"
+                                onMouseDown={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    appendLineForEditing();
+                                }}
+                                className={`inline-flex items-center rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${darkMode
+                                    ? 'bg-slate-700 text-slate-200 hover:bg-slate-600'
+                                    : 'bg-blue-50 text-blue-700 hover:bg-blue-100'}`}
+                            >
+                                + 添加一行
+                            </button>
+                            <span className={`text-[11px] ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                                {field === 'groupName' ? '每行一个标签' : '每行一条备注'}，`Ctrl/Cmd + Enter` 保存
+                            </span>
+                        </div>
+                    </div>
+                    {renderSuggestionPanel()}
+                </div>
+            );
+        }
+
+        const editorStyle = getSingleLineEditorStyle(field, editValue, placeholder);
+
+        return (
+            <div className="relative z-30 min-h-[52px] overflow-visible">
+                <div
+                    className="absolute"
+                    style={editorStyle}
+                    data-inline-editor-field={field}
+                >
+                    <div
+                        className={`rounded-xl border px-2 py-2 shadow-xl ${darkMode
+                            ? 'bg-slate-800 border-blue-500/70'
+                            : 'bg-white border-blue-400'}`}
+                    >
+                        <input
+                            ref={inputRef}
+                            type="text"
+                            value={editValue}
+                            onChange={(e) => setEditValue(e.target.value)}
+                            onKeyDown={onKeyDown}
+                            onBlur={onEditableInputBlur}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            className={`block h-9 w-full rounded-lg border px-3 py-2 text-sm leading-5 outline-none ${darkMode
+                                ? 'bg-slate-700 border-slate-600 text-slate-100'
+                                : 'bg-slate-50 border-slate-200 text-slate-800'}`}
+                            placeholder={placeholder}
+                        />
+                    </div>
+                    {renderSuggestionPanel()}
+                </div>
+            </div>
+        );
+    };
 
     const renderEditableCell = (acc, field, value, label, maxWidth = '200px', placeholder = '') => {
         const isEditing = editingCell?.accountId === acc.id && editingCell?.field === field;
+        const allowWrappedPreview = field === 'recovery';
 
         if (isEditing) {
-            return renderEditingInput(placeholder);
+            return renderEditingInput(field, placeholder);
         }
 
         return (
@@ -168,8 +287,10 @@ const AccountTable = ({
                 onClick={() => onCellClick(value, label)}
                 onDoubleClick={(e) => onCellDoubleClick(e, acc.id, field, value)}
                 onMouseDown={(e) => e.stopPropagation()}
-                className={`cursor-pointer truncate block w-full leading-5 min-h-[20px] ${darkMode ? 'text-slate-300' : 'text-slate-600'} hover:text-blue-500 transition-colors`}
-                style={{ maxWidth }}
+                className={`cursor-pointer block w-full hover:text-blue-500 transition-colors ${allowWrappedPreview
+                    ? `min-h-[36px] py-1 leading-5 whitespace-normal break-all ${darkMode ? 'text-slate-300' : 'text-slate-600'}`
+                    : `truncate leading-5 min-h-[20px] ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}`}
+                style={allowWrappedPreview ? { maxWidth, ...wrappedPreviewStyle } : { maxWidth }}
                 title={`单击复制，双击编辑：${value || '无'}`}
             >
                 {value || <span className={darkMode ? 'text-slate-500 italic' : 'text-slate-400 italic'}>无</span>}
@@ -179,25 +300,27 @@ const AccountTable = ({
 
     const renderGroupNameCell = (acc) => {
         const isEditing = editingCell?.accountId === acc.id && editingCell?.field === 'groupName';
+        const tags = splitMultiValueLines('groupName', acc.groupName);
 
         return isEditing ? (
-            renderEditingInput('输入标签，多个标签用逗号分隔')
+            renderEditingInput('groupName', '每行一个标签，支持逗号或换行粘贴')
         ) : (
             <div className="flex flex-col gap-1">
-                {acc.groupName ? (
-                    acc.groupName.split(/[,，\s]+/).filter(Boolean).map((tag, i) => (
-                        <span
-                            key={i}
+                {tags.length > 0 ? (
+                    tags.map((tag, i) => (
+                        <button
+                            key={`${acc.id}-tag-${i}-${tag}`}
+                            type="button"
                             onClick={() => onCellClick(tag, '标签')}
                             onDoubleClick={(e) => onCellDoubleClick(e, acc.id, 'groupName', acc.groupName)}
                             onMouseDown={(e) => e.stopPropagation()}
-                            className={`px-2 py-0.5 text-xs rounded-full cursor-pointer ${darkMode
+                            className={`w-full rounded-lg px-2 py-1 text-left text-xs transition-colors ${darkMode
                                 ? 'bg-amber-900/30 text-amber-300 hover:bg-amber-800/50'
                                 : 'bg-amber-100 text-amber-700 hover:bg-amber-200'}`}
-                            title="单击复制,双击编辑全部标签"
+                            title="单击复制该标签，双击编辑全部标签"
                         >
                             {tag}
-                        </span>
+                        </button>
                     ))
                 ) : (
                     <button
@@ -216,10 +339,55 @@ const AccountTable = ({
         );
     };
 
+    const renderRemarkCell = (acc) => {
+        const isEditing = editingCell?.accountId === acc.id && editingCell?.field === 'remark';
+        const lines = splitMultiValueLines('remark', acc.remark);
+
+        if (isEditing) {
+            return renderEditingInput('remark', '每行一条备注，便于逐条查看和编辑');
+        }
+
+        if (lines.length === 0) {
+            return (
+                <button
+                    type="button"
+                    onDoubleClick={(e) => onCellDoubleClick(e, acc.id, 'remark', '')}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    className={`w-full h-7 text-left rounded-md px-1.5 cursor-pointer transition-colors ${darkMode
+                        ? 'text-slate-500 italic hover:bg-slate-700/70'
+                        : 'text-slate-400 italic hover:bg-blue-50'}`}
+                    title="双击添加备注"
+                >
+                    无
+                </button>
+            );
+        }
+
+        return (
+            <div className="flex flex-col gap-1">
+                {lines.map((line, index) => (
+                    <button
+                        key={`${acc.id}-remark-${index}`}
+                        type="button"
+                        onClick={() => onCellClick(line, '备注')}
+                        onDoubleClick={(e) => onCellDoubleClick(e, acc.id, 'remark', acc.remark)}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        className={`w-full rounded-lg px-2 py-1 text-left text-xs leading-5 break-words transition-colors ${darkMode
+                            ? 'bg-slate-800 text-slate-200 hover:bg-slate-700'
+                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+                        title="单击复制该条备注，双击编辑全部备注"
+                    >
+                        {line}
+                    </button>
+                ))}
+            </div>
+        );
+    };
+
     const renderPhoneCell = (acc) => {
         const isEditing = editingCell?.accountId === acc.id && editingCell?.field === 'phone';
         if (isEditing) {
-            return renderEditingInput('支持格式：+86 138 1234 5678 / 13812345678 / 0086...');
+            return renderEditingInput('phone', '支持格式：+86 138 1234 5678 / 13812345678 / 0086...');
         }
 
         if (!acc.phone) {
@@ -260,9 +428,10 @@ const AccountTable = ({
                     onClick={() => onCellClick(numberOnly, '手机号')}
                     onDoubleClick={(e) => onCellDoubleClick(e, acc.id, 'phone', acc.phone)}
                     onMouseDown={(e) => e.stopPropagation()}
-                    className={`w-full h-7 text-left text-sm cursor-pointer font-medium rounded-md px-1.5 transition-colors select-none truncate flex items-center ${darkMode
+                    className={`w-full min-h-[36px] py-1 text-left text-sm cursor-pointer font-medium rounded-md px-1.5 transition-colors select-none whitespace-normal break-all ${darkMode
                         ? 'text-slate-200 hover:text-blue-200 hover:bg-slate-700/70'
                         : 'text-slate-700 hover:text-blue-600 hover:bg-blue-50'}`}
+                    style={wrappedPreviewStyle}
                     title="单击仅复制手机号，双击编辑"
                 >
                     {numberOnly}
@@ -274,7 +443,7 @@ const AccountTable = ({
     const renderTwoFACell = (acc) => {
         const isEditing = editingCell?.accountId === acc.id && editingCell?.field === 'secret';
         if (isEditing) {
-            return renderEditingInput('输入 2FA 密钥');
+            return renderEditingInput('secret', '输入 2FA 密钥');
         }
 
         if (!acc.secret) {
@@ -302,9 +471,10 @@ const AccountTable = ({
                     onClick={() => onCellClick(acc.secret, '2FA密钥')}
                     onDoubleClick={(e) => onCellDoubleClick(e, acc.id, 'secret', acc.secret)}
                     onMouseDown={(e) => e.stopPropagation()}
-                    className={`w-full h-7 text-left text-xs font-mono cursor-pointer rounded-md px-1.5 transition-colors select-none truncate flex items-center ${darkMode
+                    className={`w-full min-h-[36px] py-1 text-left text-xs font-mono cursor-pointer rounded-md px-1.5 transition-colors select-none whitespace-normal break-all ${darkMode
                         ? 'text-slate-300 hover:text-blue-200 hover:bg-slate-700/70'
                         : 'text-slate-600 hover:text-blue-600 hover:bg-blue-50'}`}
+                    style={wrappedPreviewStyle}
                     title="单击复制2FA密钥，双击编辑"
                 >
                     {acc.secret}
@@ -334,8 +504,9 @@ const AccountTable = ({
 
     const renderAccountLine = (acc, field, value, label, maxWidth, placeholder = '', variant = 'email') => {
         const isEditing = editingCell?.accountId === acc.id && editingCell?.field === field;
+        const allowWrappedPreview = field === 'email' || field === 'password';
         if (isEditing) {
-            return renderEditingInput(placeholder);
+            return renderEditingInput(field, placeholder);
         }
 
         const textValue = String(value || '').trim();
@@ -369,8 +540,10 @@ const AccountTable = ({
                 onClick={() => onCellClick(textValue, label)}
                 onDoubleClick={(e) => onCellDoubleClick(e, acc.id, field, textValue)}
                 onMouseDown={(e) => e.stopPropagation()}
-                className={`w-full h-7 text-left cursor-pointer rounded-md px-1.5 transition-colors select-none truncate flex items-center ${variantClass}`}
-                style={{ maxWidth }}
+                className={`w-full text-left cursor-pointer rounded-md px-1.5 transition-colors select-none ${allowWrappedPreview
+                    ? `min-h-[36px] py-1 whitespace-normal break-all ${variantClass}`
+                    : `h-7 truncate flex items-center ${variantClass}`}`}
+                style={allowWrappedPreview ? { maxWidth, ...wrappedPreviewStyle } : { maxWidth }}
                 title={`单击复制，双击编辑：${textValue}`}
             >
                 {textValue}
@@ -410,17 +583,17 @@ const AccountTable = ({
                                 />
                             </th>
                             {renderSortableHeader('序号', 'id', 'px-2 py-2.5 text-center w-[44px]', 'center')}
-                            {renderSortableHeader('账号', 'email', 'px-3 py-2.5 w-[200px]')}
-                            {renderSortableHeader('恢复', 'recovery', 'px-3 py-2.5 w-[120px]')}
-                            {renderSortableHeader('2FA', 'secret', 'px-2 py-2.5 w-[90px]')}
-                            {renderSortableHeader('手机', 'phone', 'px-2 py-2.5 w-[90px]')}
-                            {renderSortableHeader('标签', 'groupName', 'px-2 py-2.5 w-[90px]')}
-                            {renderSortableHeader('备注', 'remark', 'px-3 py-2.5 w-[100px]')}
-                            {renderSortableHeader('状态', 'status', 'px-2 py-2.5 text-center w-[72px]', 'center')}
-                            {renderSortableHeader('年份', 'regYear', 'px-2 py-2.5 text-center w-[56px]', 'center')}
-                            {renderSortableHeader('国家', 'country', 'px-2 py-2.5 text-center w-[60px]', 'center')}
-                            <th className="px-2 py-2.5 text-center w-[120px]">操作</th>
-                            {renderSortableHeader('导入', 'createdAt', 'px-2 py-2.5 w-[120px]')}
+                            {renderSortableHeader('账号', 'email', 'px-3 py-2.5 w-[190px]')}
+                            {renderSortableHeader('恢复', 'recovery', 'px-2 py-2.5 w-[96px]')}
+                            {renderSortableHeader('2FA', 'secret', 'px-2 py-2.5 w-[76px]')}
+                            {renderSortableHeader('手机', 'phone', 'px-2 py-2.5 w-[84px]')}
+                            {renderSortableHeader('标签', 'groupName', 'px-2 py-2.5 w-[140px]')}
+                            {renderSortableHeader('备注', 'remark', 'px-3 py-2.5 w-[220px]')}
+                            {renderSortableHeader('状态', 'status', 'px-2 py-2.5 text-center w-[64px]', 'center')}
+                            {renderSortableHeader('年份', 'regYear', 'px-2 py-2.5 text-center w-[52px]', 'center')}
+                            {renderSortableHeader('国家', 'country', 'px-2 py-2.5 text-center w-[52px]', 'center')}
+                            <th className="px-2 py-2.5 text-center w-[96px]">操作</th>
+                            {renderSortableHeader('导入', 'createdAt', 'px-2 py-2.5 w-[104px]')}
                         </tr>
                     </thead>
                     <tbody className={`divide-y ${darkMode ? 'divide-slate-700' : 'divide-slate-100'}`}>
@@ -484,8 +657,8 @@ const AccountTable = ({
                                     </div>
                                 </td>
                                 {/* 恢复邮箱 */}
-                                <td className="px-3 py-2.5 max-w-[120px] align-top">
-                                    {renderEditableCell(acc, 'recovery', acc.recovery, '恢复邮箱', '110px', 'recovery@example.com')}
+                                <td className="px-2 py-2.5 max-w-[96px] align-top">
+                                    {renderEditableCell(acc, 'recovery', acc.recovery, '恢复邮箱', '92px', 'recovery@example.com')}
                                 </td>
                                 {/* 2FA密钥 */}
                                 <td className="px-2 py-2.5 align-top">
@@ -501,7 +674,7 @@ const AccountTable = ({
                                 </td>
                                 {/* 备注 */}
                                 <td className="px-3 py-2.5 align-top">
-                                    {renderEditableCell(acc, 'remark', acc.remark, '备注', '90px')}
+                                    {renderRemarkCell(acc)}
                                 </td>
                                 {/* 状态（合并 Pro/出售） */}
                                 <td className="px-2 py-2.5 text-center">

@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { execSync } from 'child_process'
 import path from 'path'
 
 const normalizeBasePath = (value) => {
@@ -13,6 +14,22 @@ const normalizeBasePath = (value) => {
 
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
+const resolveGitCommit = () => {
+    if (process.env.GOOGLE_MANAGER_GIT_SHA) {
+        return process.env.GOOGLE_MANAGER_GIT_SHA
+    }
+
+    try {
+        return execSync('git rev-parse --short HEAD', {
+            cwd: __dirname,
+            stdio: ['ignore', 'pipe', 'ignore'],
+            timeout: 1500,
+        }).toString().trim()
+    } catch {
+        return ''
+    }
+}
+
 const frontendHost = process.env.GOOGLE_MANAGER_FRONTEND_HOST || '0.0.0.0'
 const frontendPort = Number(process.env.GOOGLE_MANAGER_FRONTEND_PORT || '5173')
 const apiTarget = process.env.GOOGLE_MANAGER_API_TARGET || 'http://127.0.0.1:3001'
@@ -23,6 +40,9 @@ const hmrHost = process.env.GOOGLE_MANAGER_HMR_HOST
 const hmrProtocol = process.env.GOOGLE_MANAGER_HMR_PROTOCOL || 'wss'
 const hmrClientPort = Number(process.env.GOOGLE_MANAGER_HMR_CLIENT_PORT || '443')
 const hmrPath = process.env.GOOGLE_MANAGER_HMR_PATH || basePath
+const appVersion = process.env.GOOGLE_MANAGER_APP_VERSION || process.env.npm_package_version || 'dev'
+const appBuildTime = process.env.GOOGLE_MANAGER_BUILD_TIME || new Date().toISOString()
+const appCommitSha = resolveGitCommit()
 
 const hmrConfig = hmrHost
     ? {
@@ -54,6 +74,9 @@ export default defineConfig({
     base: basePath,
     define: {
         'import.meta.env.VITE_API_URL': JSON.stringify(apiBasePath),
+        __APP_VERSION__: JSON.stringify(appVersion),
+        __APP_BUILD_TIME__: JSON.stringify(appBuildTime),
+        __APP_COMMIT_SHA__: JSON.stringify(appCommitSha),
     },
     build: {
         outDir: path.resolve(__dirname, '../static'),

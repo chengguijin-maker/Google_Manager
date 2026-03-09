@@ -235,6 +235,21 @@ describe('AccountListView 组件', () => {
       expect(screen.getByText('测试账号1')).toBeInTheDocument();
       expect(screen.getByText('测试账号2')).toBeInTheDocument();
     });
+    it('标签和备注支持按行展示多值内容', () => {
+      const multilineAccounts = [{
+        ...mockAccounts[0],
+        groupName: '工作\n重点',
+        remark: '第一条备注\n第二条备注',
+      }];
+
+      render(<AccountListView {...defaultProps} accounts={multilineAccounts} />);
+
+      expect(screen.getByText('工作')).toBeInTheDocument();
+      expect(screen.getByText('重点')).toBeInTheDocument();
+      expect(screen.getByText('第一条备注')).toBeInTheDocument();
+      expect(screen.getByText('第二条备注')).toBeInTheDocument();
+    });
+
 
     it('显示导入时间', () => {
       render(<AccountListView {...defaultProps} />);
@@ -464,6 +479,32 @@ describe('AccountListView 组件', () => {
       });
     });
 
+    it('长账号信息在非编辑态使用换行预览而不是单行截断', () => {
+      const readableAccounts = [{
+        ...mockAccounts[0],
+        email: 'very-long-account-address-1234567890@gmail.com',
+        password: 'super-long-password-1234567890-abcdef',
+        recovery: 'very-long-recovery-address-123456@example.com',
+        secret: 'JBSWY3DPEHPK3PXPLONGSECRET12345',
+        phone: '+861381234567890123',
+      }];
+
+      render(<AccountListView {...defaultProps} accounts={readableAccounts} />);
+
+      const emailElement = screen.getByText('very-long-account-address-1234567890@gmail.com');
+      const passwordElement = screen.getByText('super-long-password-1234567890-abcdef');
+      const recoveryElement = screen.getByText('very-long-recovery-address-123456@example.com');
+      const secretElement = screen.getByText('JBSWY3DPEHPK3PXPLONGSECRET12345');
+      const phoneElement = screen.getByText('1381234567890123');
+
+      expect(emailElement.className).toContain('break-all');
+      expect(emailElement.className).not.toContain('truncate');
+      expect(passwordElement.className).toContain('break-all');
+      expect(recoveryElement.className).toContain('break-all');
+      expect(secretElement.className).toContain('break-all');
+      expect(phoneElement.className).toContain('break-all');
+    });
+
     it('不再依赖旧版获取2FA验证码按钮', () => {
       render(<AccountListView {...defaultProps} />);
 
@@ -542,8 +583,24 @@ describe('AccountListView 组件', () => {
       await new Promise(resolve => setTimeout(resolve, DOUBLE_CLICK_SETTLE_MS));
 
       expect(defaultProps.copyToClipboard).not.toHaveBeenCalled();
-      expect(screen.getByPlaceholderText('输入标签，多个标签用逗号分隔')).toBeInTheDocument();
+      expect(screen.getByPlaceholderText('每行一个标签，支持逗号或换行粘贴')).toBeInTheDocument();
     });
+    it('双击备注进入多行编辑器，并显示添加一行操作', async () => {
+      const user = userEvent.setup();
+      const accountsWithRemark = [{
+        ...mockAccounts[0],
+        remark: '第一条备注\n第二条备注',
+      }];
+
+      render(<AccountListView {...defaultProps} accounts={accountsWithRemark} />);
+
+      await user.dblClick(screen.getByText('第一条备注'));
+      await new Promise(resolve => setTimeout(resolve, DOUBLE_CLICK_SETTLE_MS));
+
+      expect(screen.getByPlaceholderText('每行一条备注，便于逐条查看和编辑')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: '+ 添加一行' })).toBeInTheDocument();
+    });
+
 
     it('双击2FA验证码进入编辑时不触发复制', async () => {
       const user = userEvent.setup();
@@ -569,6 +626,7 @@ describe('AccountListView 组件', () => {
         phone: '',
         secret: '',
         groupName: '',
+        remark: '',
       }];
 
       render(<AccountListView {...defaultProps} accounts={emptyValueAccounts} />);
@@ -593,7 +651,35 @@ describe('AccountListView 组件', () => {
       expect(emptyTagTrigger.tagName).toBe('BUTTON');
       await user.dblClick(emptyTagTrigger);
       await new Promise(resolve => setTimeout(resolve, DOUBLE_CLICK_SETTLE_MS));
-      expect(screen.getByPlaceholderText('输入标签，多个标签用逗号分隔')).toBeInTheDocument();
+      expect(screen.getByPlaceholderText('每行一个标签，支持逗号或换行粘贴')).toBeInTheDocument();
+
+      fireEvent.keyDown(screen.getByPlaceholderText('每行一个标签，支持逗号或换行粘贴'), { key: 'Escape' });
+
+      const emptyRemarkTrigger = screen.getByTitle('双击添加备注');
+      expect(emptyRemarkTrigger.tagName).toBe('BUTTON');
+      await user.dblClick(emptyRemarkTrigger);
+      await new Promise(resolve => setTimeout(resolve, DOUBLE_CLICK_SETTLE_MS));
+      expect(screen.getByPlaceholderText('每行一条备注，便于逐条查看和编辑')).toBeInTheDocument();
+    });
+
+    it('单行字段双击编辑时会按内容展开更宽的编辑框', async () => {
+      const user = userEvent.setup();
+      const longRecovery = 'very-long-recovery-address-123456@example.com';
+      const longRecoveryAccounts = [{
+        ...mockAccounts[0],
+        recovery: longRecovery,
+      }];
+
+      render(<AccountListView {...defaultProps} accounts={longRecoveryAccounts} />);
+
+      await user.dblClick(screen.getByText(longRecovery));
+      await new Promise(resolve => setTimeout(resolve, DOUBLE_CLICK_SETTLE_MS));
+
+      await waitFor(() => {
+        const editorPopover = document.querySelector('[data-inline-editor-field="recovery"]');
+        expect(editorPopover).not.toBeNull();
+        expect(Number.parseFloat(editorPopover.style.width)).toBeGreaterThan(300);
+      });
     });
 
     it('刚编辑的新值可立即在同列其他行的建议中复用', async () => {

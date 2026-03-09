@@ -20,6 +20,7 @@ import ExportDialog from './ExportDialog';
 import BatchToolbar from './BatchToolbar';
 import AccountTable from './AccountTable';
 import api from '../services/api';
+import { splitMultiValueLines } from '../utils/multiValueField';
 
 const REUSABLE_INLINE_FIELDS = ['recovery', 'phone', 'groupName', 'remark', 'regYear', 'country'];
 const DEFAULT_EXPORT_CATEGORY_LABEL_TEMPLATE = '{index}. {groupField}: {groupValue}（共 {count} 条）';
@@ -44,16 +45,7 @@ const buildEmptyRecentValues = () =>
 const extractReusableCandidates = (field, value) => {
     if (!REUSABLE_INLINE_FIELDS.includes(field)) return [];
     if (value === null || value === undefined) return [];
-
-    if (field === 'groupName') {
-        return String(value)
-            .split(/[,，\s]+/)
-            .map(item => item.trim())
-            .filter(Boolean);
-    }
-
-    const normalized = String(value).trim();
-    return normalized ? [normalized] : [];
+    return splitMultiValueLines(field, value);
 };
 
 const normalizeSortDirection = (direction, fallbackDirection) =>
@@ -228,9 +220,7 @@ const AccountListView = ({
                 const rawValue = account?.[field];
                 if (!rawValue) continue;
 
-                const candidates = field === 'groupName'
-                    ? String(rawValue).split(/[,，\s]+/).map(item => item.trim()).filter(Boolean)
-                    : [String(rawValue).trim()];
+                const candidates = splitMultiValueLines(field, rawValue);
 
                 for (const candidate of candidates) {
                     if (!candidate || seenByField[field].has(candidate)) continue;

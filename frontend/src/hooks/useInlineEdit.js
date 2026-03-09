@@ -1,25 +1,39 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { normalizePhoneNumber } from '../utils/phoneUtils';
+import {
+    appendUniqueLine,
+    isMultilineField,
+    normalizeMultiValueValue,
+} from '../utils/multiValueField';
 
 export const CLICK_COPY_DELAY_MS = 320;
 
-/**
- * 行内编辑 Hook
- * 管理单元格的双击编辑、保存、取消逻辑
- */
+const focusEditableField = (element, multiline = false) => {
+    if (!element) return;
+
+    try {
+        element.focus({ preventScroll: true });
+    } catch {
+        element.focus();
+    }
+
+    if (typeof element.setSelectionRange !== 'function') return;
+
+    if (multiline) {
+        const length = String(element.value || '').length;
+        element.setSelectionRange(length, length);
+        return;
+    }
+
+    element.select();
+};
+
 const useInlineEdit = ({ onInlineEdit, allGroups, recentValuesByField = {} }) => {
-    // 编辑状态：{ accountId, field, originalValue }
     const [editingCell, setEditingCell] = useState(null);
     const [editValue, setEditValue] = useState('');
     const inputRef = useRef(null);
-
-    // 通用自动建议显示状态
     const [showSuggestions, setShowSuggestions] = useState(false);
-
-    // Refs for race condition fixes
     const isSelectingSuggestionRef = useRef(false);
-
-    // 单击延迟计时器引用
     const clickTimerRef = useRef(null);
 
     const getSuggestionsForField = (field) => {
@@ -36,7 +50,6 @@ const useInlineEdit = ({ onInlineEdit, allGroups, recentValuesByField = {} }) =>
         [activeField, allGroups, recentValuesByField]
     );
 
-    // 过滤建议
     const filteredSuggestions = useMemo(() => {
         const keyword = String(editValue || '').trim().toLowerCase();
         if (!keyword) return activeSuggestions.slice(0, 5);
@@ -45,17 +58,17 @@ const useInlineEdit = ({ onInlineEdit, allGroups, recentValuesByField = {} }) =>
             .slice(0, 5);
     }, [activeSuggestions, editValue]);
 
-    // 当输入框打开时聚焦，避免焦点切换导致页面滚动
     useEffect(() => {
-        if (editingCell && inputRef.current) {
-            try {
-                inputRef.current.focus({ preventScroll: true });
-            } catch {
-                inputRef.current.focus();
-            }
-            inputRef.current.select();
-        }
+        if (!editingCell || !inputRef.current) return;
+        focusEditableField(inputRef.current, isMultilineField(editingCell.field));
     }, [editingCell]);
+
+    useEffect(() => {
+        if (!editingCell || !inputRef.current || !isMultilineField(editingCell.field)) return;
+        const element = inputRef.current;
+        element.style.height = 'auto';
+        element.style.height = `${Math.min(Math.max(element.scrollHeight, 96), 260)}px`;
+    }, [editingCell, editValue]);
 
     useEffect(() => {
         return () => {
@@ -66,7 +79,6 @@ const useInlineEdit = ({ onInlineEdit, allGroups, recentValuesByField = {} }) =>
         };
     }, []);
 
-    // 单击复制（延迟执行，如果发生双击则取消）
     const handleCellClick = (value, label, copyToClipboard) => {
         if (value && !editingCell) {
             if (clickTimerRef.current) {
@@ -79,7 +91,6 @@ const useInlineEdit = ({ onInlineEdit, allGroups, recentValuesByField = {} }) =>
         }
     };
 
-    // 双击进入编辑模式
     const handleCellDoubleClick = (e, accountId, field, currentValue) => {
         e.stopPropagation();
         if (typeof e.preventDefault === 'function') {
@@ -95,18 +106,29 @@ const useInlineEdit = ({ onInlineEdit, allGroups, recentValuesByField = {} }) =>
         setShowSuggestions(getSuggestionsForField(field).length > 0);
     };
 
-    // 保存编辑（值未变化时不提交，避免切换编辑目标时界面跳动）
+    const cancelEdit = () => {
+        setEditingCell(null);
+        setEditValue('');
+        setShowSuggestions(false);
+        isSelectingSuggestionRef.current = false;
+    };
+
     const saveEdit = () => {
         if (!editingCell) {
             cancelEdit();
             return;
         }
 
-        const originalValue = String(editingCell.originalValue ?? '');
+        const originalValue = normalizeMultiValueValue(editingCell.field, String(editingCell.originalValue ?? ''));
         let currentValue = String(editValue ?? '');
+
         if (editingCell.field === 'phone' && currentValue) {
             currentValue = normalizePhoneNumber(currentValue);
         }
+        if (isMultilineField(editingCell.field)) {
+            currentValue = normalizeMultiValueValue(editingCell.field, currentValue);
+        }
+
         if (originalValue === currentValue) {
             cancelEdit();
             return;
@@ -118,7 +140,6 @@ const useInlineEdit = ({ onInlineEdit, allGroups, recentValuesByField = {} }) =>
         cancelEdit();
     };
 
-    // 处理输入框失焦 - 防止与建议选择竞态
     const handleEditableInputBlur = () => {
         if (!isSelectingSuggestionRef.current) {
             saveEdit();
@@ -127,27 +148,49 @@ const useInlineEdit = ({ onInlineEdit, allGroups, recentValuesByField = {} }) =>
         }
     };
 
-    // 取消编辑
-    const cancelEdit = () => {
-        setEditingCell(null);
-        setEditValue('');
-        setShowSuggestions(false);
-        isSelectingSuggestionRef.current = false;
-    };
-
-    // 键盘事件处理
     const handleKeyDown = (e) => {
-        if (e.key === 'Enter') {
-            saveEdit();
-        } else if (e.key === 'Escape') {
+        if (!editingCell) return;
+
+        const multiline = isMultilineField(editingCell.field);
+        if (e.key === 'Escape') {
+            if (typeof e.preventDefault === 'function') e.preventDefault();
             cancelEdit();
+            return;
+        }
+
+        if (multiline) {
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                if (typeof e.preventDefault === 'function') e.preventDefault();
+                saveEdit();
+            }
+            return;
+        }
+
+        if (e.key === 'Enter') {
+            if (typeof e.preventDefault === 'function') e.preventDefault();
+            saveEdit();
         }
     };
 
-    // 选择建议
     const selectSuggestion = (value) => {
         isSelectingSuggestionRef.current = true;
-        if (editingCell && onInlineEdit) {
+
+        if (!editingCell) {
+            cancelEdit();
+            return;
+        }
+
+        if (isMultilineField(editingCell.field)) {
+            setEditValue(prev => appendUniqueLine(editingCell.field, prev, value));
+            setShowSuggestions(getSuggestionsForField(editingCell.field).length > 0);
+            queueMicrotask(() => {
+                focusEditableField(inputRef.current, true);
+            });
+            isSelectingSuggestionRef.current = false;
+            return;
+        }
+
+        if (onInlineEdit) {
             onInlineEdit(editingCell.accountId, editingCell.field, value);
         }
         cancelEdit();
@@ -166,6 +209,7 @@ const useInlineEdit = ({ onInlineEdit, allGroups, recentValuesByField = {} }) =>
         handleKeyDown,
         selectSuggestion,
         cancelEdit,
+        isMultilineEditing: isMultilineField(editingCell?.field),
     };
 };
 

@@ -30,6 +30,8 @@ describe('LoginPage 组件', () => {
     });
     expect(screen.getByRole('button', { name: /进入系统/i })).toBeInTheDocument();
     expect(screen.getByText(/GoogleManager/i)).toBeInTheDocument();
+    expect(screen.getByText('版本')).toBeInTheDocument();
+    expect(screen.getByText('编译')).toBeInTheDocument();
   });
 
   it('空密码点击登录显示错误提示', async () => {
