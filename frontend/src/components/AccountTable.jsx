@@ -138,6 +138,15 @@ const AccountTable = ({
         );
     };
 
+    const wrappedPreviewStyle = {
+        display: '-webkit-box',
+        WebkitBoxOrient: 'vertical',
+        WebkitLineClamp: 2,
+        overflow: 'hidden',
+        whiteSpace: 'normal',
+        wordBreak: 'break-all',
+    };
+
     const focusEditorToEnd = () => {
         queueMicrotask(() => {
             if (!inputRef.current || typeof inputRef.current.setSelectionRange !== 'function') return;
@@ -154,6 +163,35 @@ const AccountTable = ({
             return current.endsWith('\n') ? current : `${current}\n`;
         });
         focusEditorToEnd();
+    };
+
+    const singleLineEditorConfig = {
+        default: { minWidth: 220, maxWidth: 520, minChars: 18, align: 'left' },
+        email: { minWidth: 280, maxWidth: 680, minChars: 28, align: 'left' },
+        password: { minWidth: 240, maxWidth: 560, minChars: 22, align: 'left' },
+        recovery: { minWidth: 280, maxWidth: 680, minChars: 28, align: 'left' },
+        secret: { minWidth: 260, maxWidth: 620, minChars: 24, align: 'right' },
+        phone: { minWidth: 280, maxWidth: 620, minChars: 24, align: 'right' },
+        regYear: { minWidth: 120, maxWidth: 180, minChars: 10, align: 'right' },
+        country: { minWidth: 160, maxWidth: 320, minChars: 12, align: 'right' },
+    };
+
+    const getSingleLineEditorStyle = (field, currentValue, placeholder = '') => {
+        const config = singleLineEditorConfig[field] || singleLineEditorConfig.default;
+        const contentLength = Math.max(
+            String(currentValue || '').trim().length,
+            String(placeholder || '').trim().length,
+            config.minChars,
+        );
+        const widthPx = Math.min(Math.max(contentLength * 9 + 44, config.minWidth), config.maxWidth);
+
+        return {
+            top: '-4px',
+            ...(config.align === 'right' ? { right: 0 } : { left: 0 }),
+            width: `${widthPx}px`,
+            minWidth: `${config.minWidth}px`,
+            maxWidth: `min(calc(100vw - 32px), ${config.maxWidth}px)`,
+        };
     };
 
     const renderEditingInput = (field, placeholder = '') => {
@@ -202,28 +240,43 @@ const AccountTable = ({
             );
         }
 
+        const editorStyle = getSingleLineEditorStyle(field, editValue, placeholder);
+
         return (
-            <div className="relative">
-                <input
-                    ref={inputRef}
-                    type="text"
-                    value={editValue}
-                    onChange={(e) => setEditValue(e.target.value)}
-                    onKeyDown={onKeyDown}
-                    onBlur={onEditableInputBlur}
-                    onMouseDown={(e) => e.stopPropagation()}
-                    className={`w-full h-8 px-2 text-sm rounded-md border border-blue-500 outline-none shadow-sm ${darkMode
-                        ? 'bg-slate-700 text-slate-100'
-                        : 'bg-white text-slate-800'}`}
-                    placeholder={placeholder}
-                />
-                {renderSuggestionPanel()}
+            <div className="relative z-30 min-h-[52px] overflow-visible">
+                <div
+                    className="absolute"
+                    style={editorStyle}
+                    data-inline-editor-field={field}
+                >
+                    <div
+                        className={`rounded-xl border px-2 py-2 shadow-xl ${darkMode
+                            ? 'bg-slate-800 border-blue-500/70'
+                            : 'bg-white border-blue-400'}`}
+                    >
+                        <input
+                            ref={inputRef}
+                            type="text"
+                            value={editValue}
+                            onChange={(e) => setEditValue(e.target.value)}
+                            onKeyDown={onKeyDown}
+                            onBlur={onEditableInputBlur}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            className={`block h-9 w-full rounded-lg border px-3 py-2 text-sm leading-5 outline-none ${darkMode
+                                ? 'bg-slate-700 border-slate-600 text-slate-100'
+                                : 'bg-slate-50 border-slate-200 text-slate-800'}`}
+                            placeholder={placeholder}
+                        />
+                    </div>
+                    {renderSuggestionPanel()}
+                </div>
             </div>
         );
     };
 
     const renderEditableCell = (acc, field, value, label, maxWidth = '200px', placeholder = '') => {
         const isEditing = editingCell?.accountId === acc.id && editingCell?.field === field;
+        const allowWrappedPreview = field === 'recovery';
 
         if (isEditing) {
             return renderEditingInput(field, placeholder);
@@ -234,8 +287,10 @@ const AccountTable = ({
                 onClick={() => onCellClick(value, label)}
                 onDoubleClick={(e) => onCellDoubleClick(e, acc.id, field, value)}
                 onMouseDown={(e) => e.stopPropagation()}
-                className={`cursor-pointer truncate block w-full leading-5 min-h-[20px] ${darkMode ? 'text-slate-300' : 'text-slate-600'} hover:text-blue-500 transition-colors`}
-                style={{ maxWidth }}
+                className={`cursor-pointer block w-full hover:text-blue-500 transition-colors ${allowWrappedPreview
+                    ? `min-h-[36px] py-1 leading-5 whitespace-normal break-all ${darkMode ? 'text-slate-300' : 'text-slate-600'}`
+                    : `truncate leading-5 min-h-[20px] ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}`}
+                style={allowWrappedPreview ? { maxWidth, ...wrappedPreviewStyle } : { maxWidth }}
                 title={`单击复制，双击编辑：${value || '无'}`}
             >
                 {value || <span className={darkMode ? 'text-slate-500 italic' : 'text-slate-400 italic'}>无</span>}
@@ -373,9 +428,10 @@ const AccountTable = ({
                     onClick={() => onCellClick(numberOnly, '手机号')}
                     onDoubleClick={(e) => onCellDoubleClick(e, acc.id, 'phone', acc.phone)}
                     onMouseDown={(e) => e.stopPropagation()}
-                    className={`w-full h-7 text-left text-sm cursor-pointer font-medium rounded-md px-1.5 transition-colors select-none truncate flex items-center ${darkMode
+                    className={`w-full min-h-[36px] py-1 text-left text-sm cursor-pointer font-medium rounded-md px-1.5 transition-colors select-none whitespace-normal break-all ${darkMode
                         ? 'text-slate-200 hover:text-blue-200 hover:bg-slate-700/70'
                         : 'text-slate-700 hover:text-blue-600 hover:bg-blue-50'}`}
+                    style={wrappedPreviewStyle}
                     title="单击仅复制手机号，双击编辑"
                 >
                     {numberOnly}
@@ -415,9 +471,10 @@ const AccountTable = ({
                     onClick={() => onCellClick(acc.secret, '2FA密钥')}
                     onDoubleClick={(e) => onCellDoubleClick(e, acc.id, 'secret', acc.secret)}
                     onMouseDown={(e) => e.stopPropagation()}
-                    className={`w-full h-7 text-left text-xs font-mono cursor-pointer rounded-md px-1.5 transition-colors select-none truncate flex items-center ${darkMode
+                    className={`w-full min-h-[36px] py-1 text-left text-xs font-mono cursor-pointer rounded-md px-1.5 transition-colors select-none whitespace-normal break-all ${darkMode
                         ? 'text-slate-300 hover:text-blue-200 hover:bg-slate-700/70'
                         : 'text-slate-600 hover:text-blue-600 hover:bg-blue-50'}`}
+                    style={wrappedPreviewStyle}
                     title="单击复制2FA密钥，双击编辑"
                 >
                     {acc.secret}
@@ -447,6 +504,7 @@ const AccountTable = ({
 
     const renderAccountLine = (acc, field, value, label, maxWidth, placeholder = '', variant = 'email') => {
         const isEditing = editingCell?.accountId === acc.id && editingCell?.field === field;
+        const allowWrappedPreview = field === 'email' || field === 'password';
         if (isEditing) {
             return renderEditingInput(field, placeholder);
         }
@@ -482,8 +540,10 @@ const AccountTable = ({
                 onClick={() => onCellClick(textValue, label)}
                 onDoubleClick={(e) => onCellDoubleClick(e, acc.id, field, textValue)}
                 onMouseDown={(e) => e.stopPropagation()}
-                className={`w-full h-7 text-left cursor-pointer rounded-md px-1.5 transition-colors select-none truncate flex items-center ${variantClass}`}
-                style={{ maxWidth }}
+                className={`w-full text-left cursor-pointer rounded-md px-1.5 transition-colors select-none ${allowWrappedPreview
+                    ? `min-h-[36px] py-1 whitespace-normal break-all ${variantClass}`
+                    : `h-7 truncate flex items-center ${variantClass}`}`}
+                style={allowWrappedPreview ? { maxWidth, ...wrappedPreviewStyle } : { maxWidth }}
                 title={`单击复制，双击编辑：${textValue}`}
             >
                 {textValue}

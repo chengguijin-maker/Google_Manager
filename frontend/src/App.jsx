@@ -17,6 +17,8 @@ import LoginPage from './components/LoginPage';
 import EditModal from './components/EditModal';
 import { normalizePhoneNumber } from './utils/phoneUtils';
 import { normalizeMultiValueValue, splitGroupNameValues } from './utils/multiValueField';
+import { APP_BUILD_TIME, buildVersionLabel, formatBuildTime } from './utils/buildInfo';
+
 const App = () => {
     const [view, setView] = useState('list');
     const [accounts, setAccounts] = useState([]);
@@ -485,27 +487,37 @@ const App = () => {
                                 </button>
                             </div>
 
-                            <div className="flex items-center justify-end gap-2 sm:gap-4">
-                                {/* 暗色模式切换按钮 */}
-                                <button
-                                    onClick={() => setDarkMode(!darkMode)}
-                                    className={`p-2.5 rounded-xl transition-all ${darkMode
-                                        ? 'bg-slate-700 text-yellow-400 hover:bg-slate-600'
-                                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-                                    title={darkMode ? '切换亮色模式' : '切换暗色模式'}
+                            <div className="flex flex-col items-end gap-2 sm:gap-3">
+                                <div className="flex items-center justify-end gap-2 sm:gap-4">
+                                    {/* 暗色模式切换按钮 */}
+                                    <button
+                                        onClick={() => setDarkMode(!darkMode)}
+                                        className={`p-2.5 rounded-xl transition-all ${darkMode
+                                            ? 'bg-slate-700 text-yellow-400 hover:bg-slate-600'
+                                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                                        title={darkMode ? '切换亮色模式' : '切换暗色模式'}
+                                    >
+                                        {darkMode ? <Sun size={20} /> : <Moon size={20} />}
+                                    </button>
+                                    <button
+                                        onClick={handleLogout}
+                                        className={`flex items-center gap-2 px-3 py-2 rounded-xl transition-all ${darkMode
+                                            ? 'bg-slate-700 text-slate-200 hover:bg-slate-600'
+                                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+                                        title="退出登录"
+                                    >
+                                        <LogOut size={16} />
+                                        <span className="text-sm font-medium">退出</span>
+                                    </button>
+                                </div>
+                                <div
+                                    className={`max-w-full rounded-lg px-2.5 py-1 text-[10px] leading-4 break-all sm:text-[11px] sm:break-normal ${darkMode
+                                        ? 'bg-slate-800/70 text-slate-400'
+                                        : 'bg-slate-100 text-slate-500'}`}
+                                    title={`版本 ${buildVersionLabel} · 编译 ${APP_BUILD_TIME || '未知'}`}
                                 >
-                                    {darkMode ? <Sun size={20} /> : <Moon size={20} />}
-                                </button>
-                                <button
-                                    onClick={handleLogout}
-                                    className={`flex items-center gap-2 px-3 py-2 rounded-xl transition-all ${darkMode
-                                        ? 'bg-slate-700 text-slate-200 hover:bg-slate-600'
-                                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
-                                    title="退出登录"
-                                >
-                                    <LogOut size={16} />
-                                    <span className="text-sm font-medium">退出</span>
-                                </button>
+                                    <span className="font-medium">版本</span> {buildVersionLabel} · <span className="font-medium">编译</span> {formatBuildTime(APP_BUILD_TIME)}
+                                </div>
                             </div>
                         </div>
                     </div>

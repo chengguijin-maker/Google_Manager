@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ShieldCheck, Lock, AlertTriangle, Eye, EyeOff } from 'lucide-react';
 import api from '../services/api';
+import { APP_BUILD_TIME, buildVersionLabel, formatBuildTime } from '../utils/buildInfo';
 
 /**
  * 登录页面组件
@@ -143,6 +144,15 @@ const LoginPage = ({ onLoginSuccess, darkMode }) => {
                         )}
                     </form>
                 )}
+
+                <div
+                    className={`mt-6 rounded-xl px-3 py-2 text-center text-[11px] leading-5 break-all sm:break-normal ${darkMode
+                        ? 'bg-slate-700/60 text-slate-300'
+                        : 'bg-slate-50 text-slate-500'}`}
+                    title={`版本 ${buildVersionLabel} · 编译 ${APP_BUILD_TIME || '未知'}`}
+                >
+                    <span className="font-medium">版本</span> {buildVersionLabel} · <span className="font-medium">编译</span> {formatBuildTime(APP_BUILD_TIME)}
+                </div>
             </div>
         </div>
     );

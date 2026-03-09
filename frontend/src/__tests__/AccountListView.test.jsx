@@ -479,6 +479,32 @@ describe('AccountListView 组件', () => {
       });
     });
 
+    it('长账号信息在非编辑态使用换行预览而不是单行截断', () => {
+      const readableAccounts = [{
+        ...mockAccounts[0],
+        email: 'very-long-account-address-1234567890@gmail.com',
+        password: 'super-long-password-1234567890-abcdef',
+        recovery: 'very-long-recovery-address-123456@example.com',
+        secret: 'JBSWY3DPEHPK3PXPLONGSECRET12345',
+        phone: '+861381234567890123',
+      }];
+
+      render(<AccountListView {...defaultProps} accounts={readableAccounts} />);
+
+      const emailElement = screen.getByText('very-long-account-address-1234567890@gmail.com');
+      const passwordElement = screen.getByText('super-long-password-1234567890-abcdef');
+      const recoveryElement = screen.getByText('very-long-recovery-address-123456@example.com');
+      const secretElement = screen.getByText('JBSWY3DPEHPK3PXPLONGSECRET12345');
+      const phoneElement = screen.getByText('1381234567890123');
+
+      expect(emailElement.className).toContain('break-all');
+      expect(emailElement.className).not.toContain('truncate');
+      expect(passwordElement.className).toContain('break-all');
+      expect(recoveryElement.className).toContain('break-all');
+      expect(secretElement.className).toContain('break-all');
+      expect(phoneElement.className).toContain('break-all');
+    });
+
     it('不再依赖旧版获取2FA验证码按钮', () => {
       render(<AccountListView {...defaultProps} />);
 
@@ -634,6 +660,26 @@ describe('AccountListView 组件', () => {
       await user.dblClick(emptyRemarkTrigger);
       await new Promise(resolve => setTimeout(resolve, DOUBLE_CLICK_SETTLE_MS));
       expect(screen.getByPlaceholderText('每行一条备注，便于逐条查看和编辑')).toBeInTheDocument();
+    });
+
+    it('单行字段双击编辑时会按内容展开更宽的编辑框', async () => {
+      const user = userEvent.setup();
+      const longRecovery = 'very-long-recovery-address-123456@example.com';
+      const longRecoveryAccounts = [{
+        ...mockAccounts[0],
+        recovery: longRecovery,
+      }];
+
+      render(<AccountListView {...defaultProps} accounts={longRecoveryAccounts} />);
+
+      await user.dblClick(screen.getByText(longRecovery));
+      await new Promise(resolve => setTimeout(resolve, DOUBLE_CLICK_SETTLE_MS));
+
+      await waitFor(() => {
+        const editorPopover = document.querySelector('[data-inline-editor-field="recovery"]');
+        expect(editorPopover).not.toBeNull();
+        expect(Number.parseFloat(editorPopover.style.width)).toBeGreaterThan(300);
+      });
     });
 
     it('刚编辑的新值可立即在同列其他行的建议中复用', async () => {

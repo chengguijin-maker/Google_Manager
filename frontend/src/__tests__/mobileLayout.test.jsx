@@ -55,6 +55,9 @@ describe('移动端布局回归', () => {
     expect(viewSwitcher).toHaveClass('grid');
     expect(viewSwitcher).toHaveClass('grid-cols-2');
     expect(viewSwitcher.className).toContain('sm:flex');
+
+    expect(screen.getByText('版本')).toBeInTheDocument();
+    expect(screen.getByText('编译')).toBeInTheDocument();
   });
 
   it('HistoryDrawer 在移动端使用全宽并限制最大宽度 420px', async () => {
