@@ -1,0 +1,18 @@
+[Unit]
+Description=Google Manager 开发预览服务
+After=network.target
+
+[Service]
+Type=simple
+EnvironmentFile=-%h/.config/google-manager/gm-preview.env
+Environment=GOOGLE_MANAGER_PREVIEW_NAME=preview
+ExecStart=/bin/bash -lc 'exec %h/.local/bin/gm-start-preview.sh preview'
+WorkingDirectory=%h
+Restart=on-failure
+RestartSec=3
+KillMode=control-group
+TimeoutStartSec=60
+TimeoutStopSec=15
+
+[Install]
+WantedBy=default.target

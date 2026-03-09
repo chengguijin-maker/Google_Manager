@@ -1,3 +1,4 @@
+use crate::app_paths;
 use crate::crypto;
 use crate::key_manager;
 use rusqlite::{params, Connection, Result, Row};
@@ -536,12 +537,7 @@ fn record_field_changes(
 }
 
 fn data_dir() -> PathBuf {
-    let mut path = dirs::data_dir().unwrap_or_else(|| PathBuf::from("."));
-    path.push("googlemanager");
-    if let Err(e) = fs::create_dir_all(&path) {
-        log::error!("创建数据目录失败: {}", e);
-    }
-    path
+    app_paths::data_dir()
 }
 
 pub fn get_db_path() -> PathBuf {

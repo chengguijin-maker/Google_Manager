@@ -182,6 +182,9 @@ curl https://hy.2oranges.cn/gm/api/auth/check -k
 
 ## 7. 注意事项
 
+- 多 worktree path 预览方案见：`docs/nginx-gm-preview-path-routing.md`。
+
+
 - `5173`、`3001` 当前只放行给 `172.0.0.0/8`，不建议直接作为公网入口。
 - 公网应统一走 `80/443`，由 Nginx 路径反代转发。
 - `curl -I https://hy.2oranges.cn/gm/api/auth/check` 可能得到 `404`，因为后端未实现 `HEAD`；请使用 `GET` 验证。

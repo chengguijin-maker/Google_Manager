@@ -3,7 +3,14 @@
 set -Eeuo pipefail
 shopt -s nullglob
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR_INPUT="${GOOGLE_MANAGER_ROOT_DIR:-$SCRIPT_DIR}"
+if ! ROOT_DIR="$(cd "$ROOT_DIR_INPUT" 2>/dev/null && pwd)"; then
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] 工作目录不存在：$ROOT_DIR_INPUT" >&2
+    exit 1
+fi
+
+SERVICE_NAME="${GOOGLE_MANAGER_SERVICE_NAME:-Google Manager}"
 LOG_DIR="${GOOGLE_MANAGER_LOG_DIR:-${XDG_RUNTIME_DIR:-/tmp}/google-manager}"
 BACKEND_PORT="${GOOGLE_MANAGER_BACKEND_PORT:-3001}"
 FRONTEND_PORT="${GOOGLE_MANAGER_FRONTEND_PORT:-5173}"
@@ -125,24 +132,20 @@ fi
 : > "$BACKEND_LOG"
 : > "$FRONTEND_LOG"
 
-log "启动 Google Manager 后端：$BACKEND_BIN --test-server --port $BACKEND_PORT"
-GOOGLE_MANAGER_ADMIN_PASSWORD="$GM_PASSWORD" \
-    "$BACKEND_BIN" --test-server --port "$BACKEND_PORT" \
-    >> "$BACKEND_LOG" 2>&1 &
+log "启动 ${SERVICE_NAME} 后端：$BACKEND_BIN --test-server --port $BACKEND_PORT"
+GOOGLE_MANAGER_ADMIN_PASSWORD="$GM_PASSWORD"     "$BACKEND_BIN" --test-server --port "$BACKEND_PORT"     >> "$BACKEND_LOG" 2>&1 &
 backend_pid="$!"
 
-wait_for_tcp_port "$BACKEND_PORT" "Google Manager 后端"
+wait_for_tcp_port "$BACKEND_PORT" "${SERVICE_NAME} 后端"
 
-log "启动 Google Manager 前端：$PNPM_BIN run dev -- --host $FRONTEND_HOST --port $FRONTEND_PORT --strictPort"
+log "启动 ${SERVICE_NAME} 前端：$PNPM_BIN run dev -- --host $FRONTEND_HOST --port $FRONTEND_PORT --strictPort"
 cd "$FRONTEND_DIR"
-GOOGLE_MANAGER_BASE_PATH="$BASE_PATH" VITE_API_URL="$API_BASE_PATH" GOOGLE_MANAGER_API_TARGET="$API_TARGET" \
-    "$PNPM_BIN" run dev -- --host "$FRONTEND_HOST" --port "$FRONTEND_PORT" --strictPort \
-    >> "$FRONTEND_LOG" 2>&1 &
+GOOGLE_MANAGER_BASE_PATH="$BASE_PATH" VITE_API_URL="$API_BASE_PATH" GOOGLE_MANAGER_API_TARGET="$API_TARGET"     "$PNPM_BIN" run dev -- --host "$FRONTEND_HOST" --port "$FRONTEND_PORT" --strictPort     >> "$FRONTEND_LOG" 2>&1 &
 frontend_pid="$!"
 
-wait_for_http "http://127.0.0.1:${FRONTEND_PORT}${BASE_PATH}" "Google Manager 前端"
+wait_for_http "http://127.0.0.1:${FRONTEND_PORT}${BASE_PATH}" "${SERVICE_NAME} 前端"
 
-log "Google Manager 服务已就绪：前端 http://0.0.0.0:${FRONTEND_PORT}${BASE_PATH} ，后端 http://0.0.0.0:${BACKEND_PORT}"
+log "${SERVICE_NAME} 服务已就绪：前端 http://$FRONTEND_HOST:${FRONTEND_PORT}${BASE_PATH} ，后端 http://0.0.0.0:${BACKEND_PORT}"
 log "日志目录：$LOG_DIR"
 
 while true; do
