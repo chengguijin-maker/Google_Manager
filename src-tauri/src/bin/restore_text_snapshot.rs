@@ -1,3 +1,5 @@
+#[path = "../app_paths.rs"]
+mod app_paths;
 #[path = "../crypto.rs"]
 mod crypto;
 #[path = "../key_manager.rs"]

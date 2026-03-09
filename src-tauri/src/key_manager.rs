@@ -1,6 +1,8 @@
 use std::fs::{self, OpenOptions};
 use std::io::{Read, Write};
 use std::path::PathBuf;
+
+use crate::app_paths;
 use std::sync::OnceLock;
 
 use base64::{engine::general_purpose, Engine as _};
@@ -9,11 +11,7 @@ use rand::RngCore;
 static MASTER_KEY_CACHE: OnceLock<Result<[u8; 32], String>> = OnceLock::new();
 
 fn key_file_path() -> PathBuf {
-    let mut path = dirs::data_dir().unwrap_or_else(|| PathBuf::from("."));
-    path.push("googlemanager");
-    if let Err(e) = fs::create_dir_all(&path) {
-        log::error!("创建数据目录失败: {}", e);
-    }
+    let mut path = app_paths::data_dir();
     path.push("master.key");
     path
 }

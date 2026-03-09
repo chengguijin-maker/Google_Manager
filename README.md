@@ -276,7 +276,7 @@ journalctl --user -u local-services.service -f
 - 前端默认监听 `0.0.0.0`，并使用 `GOOGLE_MANAGER_BASE_PATH=/gm/`
 - 用户服务默认注入 `VITE_API_URL=/gm/api` 与 HMR 反代参数
 - 日志默认写入 `/run/user/$UID/google-manager/`
-- 如需自定义，可设置 `GOOGLE_MANAGER_FRONTEND_HOST`、`GOOGLE_MANAGER_FRONTEND_PORT`、`GOOGLE_MANAGER_BACKEND_PORT`、`GOOGLE_MANAGER_BASE_PATH`
+- 如需自定义，可设置 `GOOGLE_MANAGER_FRONTEND_HOST`、`GOOGLE_MANAGER_FRONTEND_PORT`、`GOOGLE_MANAGER_BACKEND_PORT`、`GOOGLE_MANAGER_BASE_PATH`、`GOOGLE_MANAGER_ROOT_DIR`、`GOOGLE_MANAGER_DATA_DIR`、`XDG_DATA_HOME`
 
 ### 外网访问建议
 
@@ -287,6 +287,44 @@ journalctl --user -u local-services.service -f
 | 前端走 `/gm/`、接口走同源 `/gm/api/` | 推荐 | 便于统一鉴权、路径隔离与减少跨域问题 |
 
 详细配置见：`docs/nginx-https-gm-routing.md`
+
+### 开发预览入口（固定 `/gm-preview/`）
+
+适合把“当前要验收的 worktree”统一挂到一个固定外网地址，避免路径和端口越来越多。
+
+```bash
+# 1) 安装预览脚本与用户服务
+mkdir -p ~/.local/bin ~/.config/systemd/user ~/.config/google-manager
+install -m 0755 start-preview.sh ~/.local/bin/gm-start-preview.sh
+install -m 0644 systemd/gm-preview.service ~/.config/systemd/user/gm-preview.service
+systemctl --user daemon-reload
+
+# 2) 配置当前要预览的 worktree
+cat > ~/.config/google-manager/gm-preview.env <<'EOF'
+GOOGLE_MANAGER_ROOT_DIR=/home/eric/.psm/worktrees/Google_Manager/multiline-tags-remarks-editor
+GOOGLE_MANAGER_FRONTEND_PORT=4186
+GOOGLE_MANAGER_BACKEND_PORT=3916
+GOOGLE_MANAGER_BASE_PATH=/gm-preview/
+VITE_API_URL=/gm-preview/api
+GOOGLE_MANAGER_DATA_DIR=/home/eric/.local/share/google-manager/previews/preview
+XDG_DATA_HOME=/home/eric/.local/share/google-manager-xdg/previews/preview
+GOOGLE_MANAGER_LOG_DIR=/run/user/1000/google-manager/previews/preview
+GOOGLE_MANAGER_FRONTEND_HOST=127.0.0.1
+GOOGLE_MANAGER_ADMIN_PASSWORD=admin123
+EOF
+
+# 3) 启动或切换预览实例
+systemctl --user enable --now gm-preview.service
+systemctl --user restart gm-preview.service
+```
+
+默认约定：
+- 外网开发版固定走 `/gm-preview/`
+- 只保留一个开发预览入口，减少记忆成本
+- 切换 worktree 只需要改 `GOOGLE_MANAGER_ROOT_DIR` 后重启 `gm-preview.service`
+- 预览数据库、主密钥、日志目录与正式环境隔离
+
+详细配置见：`docs/nginx-gm-preview-path-routing.md`
 
 ### 构建
 

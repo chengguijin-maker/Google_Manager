@@ -1,3 +1,4 @@
+mod app_paths;
 mod auth;
 #[cfg(feature = "desktop")]
 mod commands;
