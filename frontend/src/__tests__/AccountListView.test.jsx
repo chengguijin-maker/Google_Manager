@@ -692,6 +692,31 @@ describe('AccountListView 组件', () => {
       expect(screen.getByText('test100@gmail.com')).toBeInTheDocument();
       expect(screen.queryByText('test101@gmail.com')).not.toBeInTheDocument();
     });
+
+    it('切到后续页后，搜索输入会把分页重置回第一页', async () => {
+      const manyAccounts = Array.from({ length: 101 }, (_, i) => buildMockAccount(i + 1));
+
+      render(<AccountListView {...defaultProps} accounts={manyAccounts} />);
+
+      const page2Button = screen.getAllByRole('button').find(
+        (button) => button.textContent === '2' && button.className.includes('min-w-[36px]')
+      );
+      expect(page2Button).toBeDefined();
+      fireEvent.click(page2Button);
+
+      await waitFor(() => {
+        expect(screen.getByText('test101@gmail.com')).toBeInTheDocument();
+      });
+
+      fireEvent.change(screen.getByPlaceholderText('搜索邮箱或备注内容...'), {
+        target: { value: 'a' },
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('test1@gmail.com')).toBeInTheDocument();
+      });
+      expect(defaultProps.setSearch).toHaveBeenCalled();
+    });
   });
 
   describe('多选链路', () => {

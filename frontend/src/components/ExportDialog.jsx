@@ -284,7 +284,7 @@ const ExportDialog = ({
             <div className={`relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl animate-in zoom-in-95 duration-200 ${
                 darkMode ? 'bg-slate-800 text-slate-100' : 'bg-white text-slate-900'
             }`}>
-                <div className={`sticky top-0 z-10 flex items-center justify-between p-6 border-b ${
+                <div className={`sticky top-0 z-10 flex items-center justify-between p-4 sm:p-6 border-b ${
                     darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'
                 }`}>
                     <div>
@@ -295,6 +295,8 @@ const ExportDialog = ({
                     </div>
                     <button
                         onClick={onClose}
+                        aria-label="关闭导出配置"
+                        title="关闭导出配置"
                         className={`p-2 rounded-lg transition-colors ${
                             darkMode ? 'hover:bg-slate-700' : 'hover:bg-slate-100'
                         }`}
@@ -303,10 +305,10 @@ const ExportDialog = ({
                     </button>
                 </div>
 
-                <div className="p-6 space-y-6">
+                <div className="p-4 sm:p-6 space-y-6">
                     <div>
                         <label className="block text-sm font-semibold mb-3">分隔符</label>
-                        <div className="grid grid-cols-2 gap-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                             {separatorOptions.map((option) => (
                                 <button
                                     key={option.value}
@@ -352,6 +354,7 @@ const ExportDialog = ({
                         </div>
                         <button
                             onClick={() => setIncludeStats(!includeStats)}
+                            aria-label="包含统计汇总"
                             className={`relative w-12 h-6 rounded-full transition-colors ${
                                 includeStats
                                     ? 'bg-blue-500'
@@ -540,12 +543,12 @@ const ExportDialog = ({
                     </div>
                 </div>
 
-                <div className={`sticky bottom-0 flex items-center justify-end gap-3 p-6 border-t ${
+                <div className={`sticky bottom-0 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-3 p-4 sm:p-6 border-t ${
                     darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'
                 }`}>
                     <button
                         onClick={onClose}
-                        className={`px-6 py-2.5 rounded-lg font-medium transition-colors ${
+                        className={`w-full sm:w-auto px-6 py-2.5 rounded-lg font-medium transition-colors ${
                             darkMode
                                 ? 'bg-slate-700 hover:bg-slate-600 text-slate-100'
                                 : 'bg-slate-200 hover:bg-slate-300 text-slate-900'
@@ -555,7 +558,7 @@ const ExportDialog = ({
                     </button>
                     <button
                         onClick={handleExport}
-                        className="flex items-center gap-2 px-6 py-2.5 bg-green-500 hover:bg-green-600 text-white rounded-lg font-medium transition-colors"
+                        className="flex w-full sm:w-auto items-center justify-center gap-2 px-6 py-2.5 bg-green-500 hover:bg-green-600 text-white rounded-lg font-medium transition-colors"
                     >
                         <FileText size={18} />
                         导出

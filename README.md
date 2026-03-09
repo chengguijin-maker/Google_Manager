@@ -62,7 +62,8 @@
 - **Rust**: 1.77.2 或更高版本
 - **Node.js**: 20.x 或更高版本
 - **pnpm**: 8.x 或更高版本
-- **操作系统**: Windows 10+, macOS 10.15+, Linux (Ubuntu 20.04+)
+- **操作系统**: Windows 10+、Linux (Ubuntu 20.04+)
+- **发布说明**: 当前公开发布产物仅提供 Windows 和 Linux，暂不提供 macOS 安装包
 
 ### 安装步骤
 
@@ -304,10 +305,9 @@ cd src-tauri
 cargo tauri build
 ```
 
-构建产物位置：
+构建产物位置（当前文档仅列已支持发布的平台）：
 - **Windows**: `src-tauri/target/release/google-manager.exe`
 - **Linux**: `src-tauri/target/release/google-manager`
-- **macOS**: `src-tauri/target/release/bundle/macos/`
 
 ### 测试
 
@@ -385,7 +385,6 @@ React UI
 
 - **Windows**: `%APPDATA%/googlemanager/data.db`
 - **Linux**: `~/.local/share/googlemanager/data.db`
-- **macOS**: `~/Library/Application Support/googlemanager/data.db`
 
 ---
 
@@ -465,7 +464,6 @@ echo $GOOGLE_MANAGER_ADMIN_PASSWORD
 <p align="center">
   Made with ❤️ for Google Account Management
 </p>
-
 
 
 
