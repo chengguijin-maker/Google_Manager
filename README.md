@@ -130,9 +130,9 @@ systemctl --user enable --now local-services.service
 | 方式 | 地址 | 说明 |
 |---|---|---|
 | 桌面模式 | 自动打开窗口 | 适合本机开发调试 |
-| 本机浏览器 | `http://127.0.0.1:5173/gm/` | `start-services.sh` 会拉起前端与后端，并默认挂在 `/gm/` |
-| 局域网浏览器 | `http://<服务器IP>:5173/gm/` | 前端默认监听 `0.0.0.0`，并使用 `/gm/` 路径 |
-| 公网访问 | `https://hdy.2oranges.cn/gm/` | `443` 为统一入口，通过路径访问 Google Manager |
+| 本机浏览器 | `http://127.0.0.1:5173/gm/` | 适合执行 `pnpm run dev:test` 后本机调试 |
+| 局域网浏览器 | `http://<服务器IP>:5173/gm/` | 适合临时内网调试，不作为正式入口 |
+| 公网访问 | `https://hdy.2oranges.cn/gm/` | `443` 为统一入口，由 `Nginx` 直接托管正式静态文件 |
 
 **当前防火墙口径**:
 - `ufw` 已启用
@@ -503,5 +503,4 @@ echo $GOOGLE_MANAGER_ADMIN_PASSWORD
 <p align="center">
   Made with ❤️ for Google Account Management
 </p>
-
 

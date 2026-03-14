@@ -20,7 +20,7 @@
 - `SSH socket` 覆盖：`/etc/systemd/system/ssh.socket.d/override.conf`
 - `Fail2ban` jail：`/etc/fail2ban/jail.d/sshd.local`
 - 正式服务模板：`systemd/local-services.service`
-- 远端正式服务覆盖：`~/.config/systemd/user/local-services.service.d/override.conf`
+- 正式用户服务文件：`~/.config/systemd/user/local-services.service`
 - 预览环境文件：`~/.config/google-manager/gm-preview.env`
 - 正式静态目录：`/var/www/gmanager-hdy-prod/gm/`
 
