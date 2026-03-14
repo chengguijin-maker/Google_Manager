@@ -10,14 +10,30 @@ if ! ROOT_DIR="$(cd "$ROOT_DIR_INPUT" 2>/dev/null && pwd)"; then
     exit 1
 fi
 
+normalize_base_path() {
+    local value="$1"
+    if [[ -z "$value" || "$value" == "/" ]]; then
+        printf '%s' '/'
+        return 0
+    fi
+
+    [[ "$value" == /* ]] || value="/$value"
+    [[ "$value" == */ ]] || value="$value/"
+    printf '%s' "$value"
+}
+
 SERVICE_NAME="${GOOGLE_MANAGER_SERVICE_NAME:-Google Manager}"
 LOG_DIR="${GOOGLE_MANAGER_LOG_DIR:-${XDG_RUNTIME_DIR:-/tmp}/google-manager}"
 BACKEND_PORT="${GOOGLE_MANAGER_BACKEND_PORT:-3001}"
 FRONTEND_PORT="${GOOGLE_MANAGER_FRONTEND_PORT:-5173}"
 FRONTEND_HOST="${GOOGLE_MANAGER_FRONTEND_HOST:-0.0.0.0}"
-BASE_PATH="${GOOGLE_MANAGER_BASE_PATH:-/gm/}"
+BASE_PATH="$(normalize_base_path "${GOOGLE_MANAGER_BASE_PATH:-/gm/}")"
 API_BASE_PATH="${VITE_API_URL:-${BASE_PATH%/}/api}"
 API_TARGET="${GOOGLE_MANAGER_API_TARGET:-http://127.0.0.1:${BACKEND_PORT}}"
+FRONTEND_MODE="${GOOGLE_MANAGER_FRONTEND_MODE:-dev}"
+STATIC_DEPLOY_ROOT="${GOOGLE_MANAGER_STATIC_DEPLOY_ROOT:-/var/www/gmanager-hdy-prod}"
+STATIC_DEPLOY_DIR="${GOOGLE_MANAGER_STATIC_DEPLOY_DIR:-${STATIC_DEPLOY_ROOT%/}${BASE_PATH}}"
+FRONTEND_HEALTHCHECK_URL="${GOOGLE_MANAGER_FRONTEND_HEALTHCHECK_URL:-}"
 BACKEND_BIN="${GOOGLE_MANAGER_BACKEND_BIN:-$ROOT_DIR/src-tauri/target/debug/google-manager}"
 FRONTEND_DIR="$ROOT_DIR/frontend"
 BACKEND_LOG="$LOG_DIR/gm-backend.log"
@@ -87,6 +103,42 @@ wait_for_http() {
     return 1
 }
 
+sync_dir_contents() {
+    local source_dir="$1"
+    local target_dir="$2"
+
+    mkdir -p "$target_dir"
+
+    if command -v rsync >/dev/null 2>&1; then
+        rsync -a --delete "$source_dir"/ "$target_dir"/
+        return 0
+    fi
+
+    find "$target_dir" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+    cp -a "$source_dir"/. "$target_dir"/
+}
+
+build_static_frontend() {
+    log "构建 ${SERVICE_NAME} 前端静态资源：$PNPM_BIN run build"
+    cd "$FRONTEND_DIR"
+    GOOGLE_MANAGER_BASE_PATH="$BASE_PATH" \
+        VITE_API_URL="$API_BASE_PATH" \
+        GOOGLE_MANAGER_API_TARGET="$API_TARGET" \
+        "$PNPM_BIN" run build >> "$FRONTEND_LOG" 2>&1
+}
+
+deploy_static_frontend() {
+    local source_dir="$ROOT_DIR/static"
+
+    if [[ ! -f "$source_dir/index.html" ]]; then
+        log "静态构建产物不存在：$source_dir/index.html"
+        return 1
+    fi
+
+    sync_dir_contents "$source_dir" "$STATIC_DEPLOY_DIR"
+    log "${SERVICE_NAME} 静态资源已部署到：$STATIC_DEPLOY_DIR"
+}
+
 cleanup() {
     local exit_code="${1:-$?}"
 
@@ -138,14 +190,35 @@ backend_pid="$!"
 
 wait_for_tcp_port "$BACKEND_PORT" "${SERVICE_NAME} 后端"
 
-log "启动 ${SERVICE_NAME} 前端：$PNPM_BIN run dev -- --host $FRONTEND_HOST --port $FRONTEND_PORT --strictPort"
-cd "$FRONTEND_DIR"
-GOOGLE_MANAGER_BASE_PATH="$BASE_PATH" VITE_API_URL="$API_BASE_PATH" GOOGLE_MANAGER_API_TARGET="$API_TARGET"     "$PNPM_BIN" run dev -- --host "$FRONTEND_HOST" --port "$FRONTEND_PORT" --strictPort     >> "$FRONTEND_LOG" 2>&1 &
-frontend_pid="$!"
+case "$FRONTEND_MODE" in
+    dev)
+        log "启动 ${SERVICE_NAME} 前端：$PNPM_BIN run dev -- --host $FRONTEND_HOST --port $FRONTEND_PORT --strictPort"
+        cd "$FRONTEND_DIR"
+        GOOGLE_MANAGER_BASE_PATH="$BASE_PATH" \
+            VITE_API_URL="$API_BASE_PATH" \
+            GOOGLE_MANAGER_API_TARGET="$API_TARGET" \
+            "$PNPM_BIN" run dev -- --host "$FRONTEND_HOST" --port "$FRONTEND_PORT" --strictPort \
+            >> "$FRONTEND_LOG" 2>&1 &
+        frontend_pid="$!"
+        wait_for_http "http://127.0.0.1:${FRONTEND_PORT}${BASE_PATH}" "${SERVICE_NAME} 前端"
+        log "${SERVICE_NAME} 服务已就绪：前端 http://$FRONTEND_HOST:${FRONTEND_PORT}${BASE_PATH} ，后端 http://0.0.0.0:${BACKEND_PORT}"
+        ;;
+    static)
+        build_static_frontend
+        deploy_static_frontend
 
-wait_for_http "http://127.0.0.1:${FRONTEND_PORT}${BASE_PATH}" "${SERVICE_NAME} 前端"
-
-log "${SERVICE_NAME} 服务已就绪：前端 http://$FRONTEND_HOST:${FRONTEND_PORT}${BASE_PATH} ，后端 http://0.0.0.0:${BACKEND_PORT}"
+        static_healthcheck_url="$FRONTEND_HEALTHCHECK_URL"
+        if [[ -z "$static_healthcheck_url" ]]; then
+            static_healthcheck_url="https://hdy.2oranges.cn${BASE_PATH}"
+        fi
+        wait_for_http "$static_healthcheck_url" "${SERVICE_NAME} 前端静态站点"
+        log "${SERVICE_NAME} 服务已就绪：静态前端 ${static_healthcheck_url} ，后端 http://0.0.0.0:${BACKEND_PORT}"
+        ;;
+    *)
+        log "不支持的 GOOGLE_MANAGER_FRONTEND_MODE：$FRONTEND_MODE"
+        exit 1
+        ;;
+esac
 log "日志目录：$LOG_DIR"
 
 while true; do
@@ -155,10 +228,12 @@ while true; do
         exit $?
     fi
 
-    if ! kill -0 "$frontend_pid" 2>/dev/null; then
-        log "前端进程已退出"
-        wait "$frontend_pid"
-        exit $?
+    if [[ "$FRONTEND_MODE" == "dev" ]]; then
+        if ! kill -0 "$frontend_pid" 2>/dev/null; then
+            log "前端进程已退出"
+            wait "$frontend_pid"
+            exit $?
+        fi
     fi
 
     sleep 5

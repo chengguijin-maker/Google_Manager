@@ -8,10 +8,11 @@
 | 2 | SSH 入口 | `ssh -p 33305 root@hdy.2oranges.cn` |
 | 3 | 正式入口 | `https://hdy.2oranges.cn/gm/` |
 | 4 | 预览入口 | `https://hdy.2oranges.cn/gm-preview/` |
-| 5 | 正式前后端本机端口 | `5173 / 3001` |
-| 6 | 预览前后端本机端口 | `4186 / 3916` |
-| 7 | 防火墙放行 | `33305/tcp`、`80/tcp`、`443/tcp` |
-| 8 | 防护组件 | `ufw` + `fail2ban` + `certbot.timer` |
+| 5 | 正式后端本机端口 | `3001` |
+| 6 | 正式静态目录 | `/var/www/gmanager-hdy-prod/gm/` |
+| 7 | 预览前后端本机端口 | `4186 / 3916` |
+| 8 | 防火墙放行 | `33305/tcp`、`80/tcp`、`443/tcp` |
+| 9 | 防护组件 | `ufw` + `fail2ban` + `certbot.timer` |
 
 ## 2. 当前生效文件
 
@@ -21,6 +22,7 @@
 - 正式服务模板：`systemd/local-services.service`
 - 远端正式服务覆盖：`~/.config/systemd/user/local-services.service.d/override.conf`
 - 预览环境文件：`~/.config/google-manager/gm-preview.env`
+- 正式静态目录：`/var/www/gmanager-hdy-prod/gm/`
 
 ## 3. 安全口径
 
@@ -54,4 +56,5 @@ curl https://hdy.2oranges.cn/gm-preview/api/auth/check
 
 - 仓库中的 `hy.2oranges.cn` 旧配置已迁移为 `hdy.2oranges.cn`
 - 后端仍保留对旧域名来源的兼容放行，避免历史浏览器缓存或旧入口立即失效
+- 正式 `/gm/` 已改为 `Nginx` 直接托管静态产物，不再依赖 Vite dev server
 - 对外统一走 `80/443`，不要直接暴露 `3001`、`5173`、`3916`、`4186`

@@ -138,7 +138,7 @@ systemctl --user enable --now local-services.service
 - `ufw` 已启用
 - `33305/tcp`、`80/tcp`、`443/tcp` 对公网开放
 - `22/tcp` 已关闭；`3001`、`5173`、`3916`、`4186` 不直接作为公网入口
-- 当前已通过 `Nginx` 将 `https://hdy.2oranges.cn/gm/` 反代到本机前端，并将 `https://hdy.2oranges.cn/gm/api/` 反代到本机后端
+- 当前已通过 `Nginx` 直接托管 `https://hdy.2oranges.cn/gm/` 的静态资源，并将 `https://hdy.2oranges.cn/gm/api/` 反代到本机后端
 
 ---
 
@@ -272,11 +272,11 @@ journalctl --user -u local-services.service -f
 ```
 
 默认行为：
-- `start-services.sh` 会同时启动后端 `3001` 与前端 `5173`
-- 前端默认监听 `0.0.0.0`，并使用 `GOOGLE_MANAGER_BASE_PATH=/gm/`
-- 用户服务默认注入 `VITE_API_URL=/gm/api` 与 HMR 反代参数
+- `start-services.sh` 会启动后端 `3001`，并以 `static` 模式构建正式前端
+- 正式静态资源默认发布到 `/var/www/gmanager-hdy-prod/gm/`
+- `Nginx` 直接托管 `/gm/` 静态资源，并将 `/gm/api/` 转发到本机后端
 - 日志默认写入 `/run/user/$UID/google-manager/`
-- 如需自定义，可设置 `GOOGLE_MANAGER_FRONTEND_HOST`、`GOOGLE_MANAGER_FRONTEND_PORT`、`GOOGLE_MANAGER_BACKEND_PORT`、`GOOGLE_MANAGER_BASE_PATH`、`GOOGLE_MANAGER_ROOT_DIR`、`GOOGLE_MANAGER_DATA_DIR`、`XDG_DATA_HOME`
+- 如需自定义，可设置 `GOOGLE_MANAGER_BACKEND_PORT`、`GOOGLE_MANAGER_BASE_PATH`、`GOOGLE_MANAGER_ROOT_DIR`、`GOOGLE_MANAGER_DATA_DIR`、`XDG_DATA_HOME`、`GOOGLE_MANAGER_STATIC_DEPLOY_ROOT`
 
 ### 外网访问建议
 
@@ -284,7 +284,7 @@ journalctl --user -u local-services.service -f
 |---|---|---|
 | 直接暴露 `5173/3001` | 不推荐 | 适合临时内网调试，不适合长期公网暴露 |
 | 仅开放 `80/443` | 推荐 | 通过 `Nginx` / `Caddy` 反代到本机服务 |
-| 前端走 `/gm/`、接口走同源 `/gm/api/` | 推荐 | 便于统一鉴权、路径隔离与减少跨域问题 |
+| 正式 `/gm/` 走静态托管、接口走同源 `/gm/api/` | 推荐 | 避免 HMR 重连导致移动端切后台恢复时整页重载 |
 
 详细配置见：`docs/nginx-https-gm-routing.md` 与 `docs/hdy-server-ops.md`
 
@@ -502,7 +502,6 @@ echo $GOOGLE_MANAGER_ADMIN_PASSWORD
 <p align="center">
   Made with ❤️ for Google Account Management
 </p>
-
 
 
 
