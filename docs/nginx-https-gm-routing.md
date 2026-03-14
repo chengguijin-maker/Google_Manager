@@ -6,7 +6,7 @@
 |---|---|---|
 | 1 | 外网入口域名 | `hdy.2oranges.cn` |
 | 2 | 外网访问地址 | `https://hdy.2oranges.cn/gm/` |
-| 3 | 前端本机地址 | `http://127.0.0.1:5173/gm/` |
+| 3 | 正式静态目录 | `/var/www/gmanager-hdy-prod/gm/` |
 | 4 | 后端本机地址 | `http://127.0.0.1:3001` |
 | 5 | API 外网地址 | `https://hdy.2oranges.cn/gm/api/` |
 | 6 | 用户服务 | `local-services.service` |
@@ -15,7 +15,7 @@
 
 - `http://hdy.2oranges.cn/`：重定向到 `https://hdy.2oranges.cn/`
 - `https://hdy.2oranges.cn/`：重定向到 `https://hdy.2oranges.cn/gm/`
-- `https://hdy.2oranges.cn/gm/`：反代到本机前端 `5173`
+- `https://hdy.2oranges.cn/gm/`：由 `Nginx` 直接托管正式静态站点
 - `https://hdy.2oranges.cn/gm/api/`：反代到本机后端 `3001/api/`
 - `https://hdy.2oranges.cn/gm-preview/`：反代到本机预览前端 `4186`
 - `https://hdy.2oranges.cn/gm-preview/api/`：反代到本机预览后端 `3916/api/`
@@ -76,29 +76,17 @@ server {
         proxy_send_timeout 300s;
     }
 
-    location /api/ {
-        proxy_pass http://127.0.0.1:3001;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_read_timeout 300s;
-        proxy_send_timeout 300s;
+    location /gm/assets/ {
+        root /var/www/gmanager-hdy-prod;
+        access_log off;
+        expires 1y;
+        add_header Cache-Control "public, max-age=31536000, immutable" always;
     }
 
     location /gm/ {
-        proxy_pass http://127.0.0.1:5173;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_cache_bypass $http_upgrade;
-        proxy_read_timeout 300s;
-        proxy_send_timeout 300s;
+        root /var/www/gmanager-hdy-prod;
+        try_files $uri $uri/ /gm/index.html;
+        add_header Cache-Control "no-cache" always;
     }
 
     location /gm-preview/api/ {
@@ -139,16 +127,14 @@ server {
 ```ini
 Environment=GOOGLE_MANAGER_BASE_PATH=/gm/
 Environment=VITE_API_URL=/gm/api
-Environment=GOOGLE_MANAGER_HMR_HOST=hdy.2oranges.cn
-Environment=GOOGLE_MANAGER_HMR_PROTOCOL=wss
-Environment=GOOGLE_MANAGER_HMR_CLIENT_PORT=443
-Environment=GOOGLE_MANAGER_HMR_PATH=/gm/
+Environment=GOOGLE_MANAGER_FRONTEND_MODE=static
+Environment=GOOGLE_MANAGER_STATIC_DEPLOY_ROOT=/var/www/gmanager-hdy-prod
+Environment=GOOGLE_MANAGER_FRONTEND_HEALTHCHECK_URL=https://hdy.2oranges.cn/gm/
 ```
 
 ### 4.2 前端 Vite
 
 - 基路径：`/gm/`
-- HMR 路径：`/gm/`
 - API 同源路径：`/gm/api`
 
 对应文件：`frontend/vite.config.js`
@@ -159,9 +145,9 @@ Environment=GOOGLE_MANAGER_HMR_PATH=/gm/
 
 职责：
 - 拉起 Rust HTTP 后端 `3001`
-- 拉起 Vite 前端 `5173`
-- 注入 `/gm/` 基路径和 `/gm/api` API 路径
-- 启动后做端口与 HTTP 健康检查
+- 构建 `/gm/` 对应的正式静态产物
+- 同步静态资源到 `/var/www/gmanager-hdy-prod/gm/`
+- 启动后做后端端口与正式入口 HTTP 健康检查
 
 ## 5. 验证命令
 
@@ -175,8 +161,8 @@ sudo nginx -t
 sudo systemctl reload nginx
 
 # 本机验证
-curl -I http://127.0.0.1:5173/
-curl http://127.0.0.1:5173/gm/ | head
+ls -la /var/www/gmanager-hdy-prod/gm/
+curl -H 'Host: hdy.2oranges.cn' http://127.0.0.1/gm/ | head
 curl https://hdy.2oranges.cn/gm/ -k | head
 curl https://hdy.2oranges.cn/gm/api/auth/check -k
 ```
@@ -195,6 +181,6 @@ curl https://hdy.2oranges.cn/gm/api/auth/check -k
 - 多 worktree path 预览方案见：`docs/nginx-gm-preview-path-routing.md`。
 
 
-- 当前对公网放行的是 `33305`、`80`、`443`；`3001`、`5173`、`3916`、`4186` 不直接作为公网入口。
+- 当前对公网放行的是 `33305`、`80`、`443`；`3001`、`3916`、`4186` 不直接作为公网入口。
 - 公网应统一走 `80/443`，由 Nginx 路径反代转发。
 - `curl -I https://hdy.2oranges.cn/gm/api/auth/check` 可能得到 `404`，因为后端未实现 `HEAD`；请使用 `GET` 验证。
