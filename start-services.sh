@@ -34,6 +34,7 @@ FRONTEND_MODE="${GOOGLE_MANAGER_FRONTEND_MODE:-dev}"
 STATIC_DEPLOY_ROOT="${GOOGLE_MANAGER_STATIC_DEPLOY_ROOT:-/var/www/gmanager-hdy-prod}"
 STATIC_DEPLOY_DIR="${GOOGLE_MANAGER_STATIC_DEPLOY_DIR:-${STATIC_DEPLOY_ROOT%/}${BASE_PATH}}"
 FRONTEND_HEALTHCHECK_URL="${GOOGLE_MANAGER_FRONTEND_HEALTHCHECK_URL:-}"
+FRONTEND_BUILD_DIR="${GOOGLE_MANAGER_FRONTEND_BUILD_DIR:-$ROOT_DIR/static}"
 BACKEND_BIN="${GOOGLE_MANAGER_BACKEND_BIN:-$ROOT_DIR/src-tauri/target/debug/google-manager}"
 FRONTEND_DIR="$ROOT_DIR/frontend"
 BACKEND_LOG="$LOG_DIR/gm-backend.log"
@@ -119,16 +120,24 @@ sync_dir_contents() {
 }
 
 build_static_frontend() {
+    local build_sha build_time
+
+    build_sha="$(git -C "$ROOT_DIR" rev-parse --short HEAD 2>/dev/null || true)"
+    build_time="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+
     log "构建 ${SERVICE_NAME} 前端静态资源：$PNPM_BIN run build"
     cd "$FRONTEND_DIR"
     GOOGLE_MANAGER_BASE_PATH="$BASE_PATH" \
         VITE_API_URL="$API_BASE_PATH" \
         GOOGLE_MANAGER_API_TARGET="$API_TARGET" \
+        GOOGLE_MANAGER_GIT_SHA="$build_sha" \
+        GOOGLE_MANAGER_BUILD_TIME="$build_time" \
+        GOOGLE_MANAGER_FRONTEND_BUILD_DIR="$FRONTEND_BUILD_DIR" \
         "$PNPM_BIN" run build >> "$FRONTEND_LOG" 2>&1
 }
 
 deploy_static_frontend() {
-    local source_dir="$ROOT_DIR/static"
+    local source_dir="$FRONTEND_BUILD_DIR"
 
     if [[ ! -f "$source_dir/index.html" ]]; then
         log "静态构建产物不存在：$source_dir/index.html"
@@ -136,6 +145,7 @@ deploy_static_frontend() {
     fi
 
     sync_dir_contents "$source_dir" "$STATIC_DEPLOY_DIR"
+    chmod -R a+rX "$STATIC_DEPLOY_DIR"
     log "${SERVICE_NAME} 静态资源已部署到：$STATIC_DEPLOY_DIR"
 }
 
@@ -208,11 +218,10 @@ case "$FRONTEND_MODE" in
         deploy_static_frontend
 
         static_healthcheck_url="$FRONTEND_HEALTHCHECK_URL"
-        if [[ -z "$static_healthcheck_url" ]]; then
-            static_healthcheck_url="https://hdy.2oranges.cn${BASE_PATH}"
+        if [[ -n "$static_healthcheck_url" ]]; then
+            wait_for_http "$static_healthcheck_url" "${SERVICE_NAME} 前端静态站点"
         fi
-        wait_for_http "$static_healthcheck_url" "${SERVICE_NAME} 前端静态站点"
-        log "${SERVICE_NAME} 服务已就绪：静态前端 ${static_healthcheck_url} ，后端 http://0.0.0.0:${BACKEND_PORT}"
+        log "${SERVICE_NAME} 服务已就绪：静态前端目录 ${STATIC_DEPLOY_DIR} ，后端 http://0.0.0.0:${BACKEND_PORT}"
         ;;
     *)
         log "不支持的 GOOGLE_MANAGER_FRONTEND_MODE：$FRONTEND_MODE"

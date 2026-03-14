@@ -125,11 +125,12 @@ server {
 关键环境变量：
 
 ```ini
+Environment=GOOGLE_MANAGER_ROOT_DIR=%h/.psm/worktrees/Google_Manager/gmanager-svc-hdy-prod
 Environment=GOOGLE_MANAGER_BASE_PATH=/gm/
 Environment=VITE_API_URL=/gm/api
 Environment=GOOGLE_MANAGER_FRONTEND_MODE=static
+Environment=GOOGLE_MANAGER_FRONTEND_BUILD_DIR=%t/google-manager/build/gm
 Environment=GOOGLE_MANAGER_STATIC_DEPLOY_ROOT=/var/www/gmanager-hdy-prod
-Environment=GOOGLE_MANAGER_FRONTEND_HEALTHCHECK_URL=https://hdy.2oranges.cn/gm/
 ```
 
 ### 4.2 前端 Vite
@@ -147,7 +148,7 @@ Environment=GOOGLE_MANAGER_FRONTEND_HEALTHCHECK_URL=https://hdy.2oranges.cn/gm/
 - 拉起 Rust HTTP 后端 `3001`
 - 构建 `/gm/` 对应的正式静态产物
 - 同步静态资源到 `/var/www/gmanager-hdy-prod/gm/`
-- 启动后做后端端口与正式入口 HTTP 健康检查
+- 启动后做后端端口健康检查
 
 ## 5. 验证命令
 

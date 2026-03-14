@@ -274,9 +274,10 @@ journalctl --user -u local-services.service -f
 默认行为：
 - `start-services.sh` 会启动后端 `3001`，并以 `static` 模式构建正式前端
 - 正式静态资源默认发布到 `/var/www/gmanager-hdy-prod/gm/`
+- 正式构建中间产物默认写入 `%t/google-manager/build/gm`
 - `Nginx` 直接托管 `/gm/` 静态资源，并将 `/gm/api/` 转发到本机后端
 - 日志默认写入 `/run/user/$UID/google-manager/`
-- 如需自定义，可设置 `GOOGLE_MANAGER_BACKEND_PORT`、`GOOGLE_MANAGER_BASE_PATH`、`GOOGLE_MANAGER_ROOT_DIR`、`GOOGLE_MANAGER_DATA_DIR`、`XDG_DATA_HOME`、`GOOGLE_MANAGER_STATIC_DEPLOY_ROOT`
+- 如需自定义，可设置 `GOOGLE_MANAGER_BACKEND_PORT`、`GOOGLE_MANAGER_BASE_PATH`、`GOOGLE_MANAGER_ROOT_DIR`、`GOOGLE_MANAGER_DATA_DIR`、`XDG_DATA_HOME`、`GOOGLE_MANAGER_FRONTEND_BUILD_DIR`、`GOOGLE_MANAGER_STATIC_DEPLOY_ROOT`
 
 ### 外网访问建议
 
@@ -502,6 +503,5 @@ echo $GOOGLE_MANAGER_ADMIN_PASSWORD
 <p align="center">
   Made with ❤️ for Google Account Management
 </p>
-
 
 
