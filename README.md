@@ -277,7 +277,26 @@ journalctl --user -u local-services.service -f
 - 正式构建中间产物默认写入 `%t/google-manager/build/gm`
 - `Nginx` 直接托管 `/gm/` 静态资源，并将 `/gm/api/` 转发到本机后端
 - 日志默认写入 `/run/user/$UID/google-manager/`
+- hdy 线上正式流量固定由 `svc/gmanager-hdy-prod` 分支对应的 `gmanager-svc-hdy-prod` worktree 承接，`master` 不再直接对外跑正式服务
 - 如需自定义，可设置 `GOOGLE_MANAGER_BACKEND_PORT`、`GOOGLE_MANAGER_BASE_PATH`、`GOOGLE_MANAGER_ROOT_DIR`、`GOOGLE_MANAGER_DATA_DIR`、`XDG_DATA_HOME`、`GOOGLE_MANAGER_FRONTEND_BUILD_DIR`、`GOOGLE_MANAGER_STATIC_DEPLOY_ROOT`
+
+### 推荐 worktree 运行布局
+
+截至 `2026-03-14`，推荐按以下口径长期维护：
+
+| 角色 | 分支 | worktree | 说明 |
+|---|---|---|---|
+| 主干集成 | `master` | `~/.psm/worktrees/Google_Manager/gmanager-master` | 主干开发与默认预览，不直接承接正式流量 |
+| 正式服务 | `svc/gmanager-hdy-prod` | `~/.psm/worktrees/Google_Manager/gmanager-svc-hdy-prod` | 承接 `https://hdy.2oranges.cn/gm/` 正式流量 |
+| 功能开发 | `feat/gmanager-*` | `~/.psm/worktrees/Google_Manager/gmanager-feat-*` | 统一通过 `/gm-preview/` 做外网预览 |
+| 运维锚点 | `ops/gmanager-hdy-baseline-20260314` | `/home/eric/code/Google_Manager` | 保留运维基线，不直接对外 |
+
+约定：
+- 不再单独维护预览分支，所有开发分支共用固定入口 `/gm-preview/`
+- 正式 `/gm/` 已切换到静态托管，移动端“切后台回来整页重载”的主因（Vite dev server/HMR）已被移除
+- 建议 worktree 统一使用 `gmanager-*` 命名，便于定位与运维
+
+详细说明见：`docs/gmanager-worktree-runtime-layout.md`
 
 ### 外网访问建议
 
@@ -287,7 +306,7 @@ journalctl --user -u local-services.service -f
 | 仅开放 `80/443` | 推荐 | 通过 `Nginx` / `Caddy` 反代到本机服务 |
 | 正式 `/gm/` 走静态托管、接口走同源 `/gm/api/` | 推荐 | 避免 HMR 重连导致移动端切后台恢复时整页重载 |
 
-详细配置见：`docs/nginx-https-gm-routing.md` 与 `docs/hdy-server-ops.md`
+详细配置见：`docs/nginx-https-gm-routing.md`、`docs/hdy-server-ops.md` 与 `docs/gmanager-worktree-runtime-layout.md`
 
 ### 开发预览入口（固定 `/gm-preview/`）
 
@@ -302,7 +321,7 @@ systemctl --user daemon-reload
 
 # 2) 配置当前要预览的 worktree
 cat > ~/.config/google-manager/gm-preview.env <<'EOF'
-GOOGLE_MANAGER_ROOT_DIR=/home/eric/.psm/worktrees/Google_Manager/multiline-tags-remarks-editor
+GOOGLE_MANAGER_ROOT_DIR=/home/eric/.psm/worktrees/Google_Manager/gmanager-master
 GOOGLE_MANAGER_FRONTEND_PORT=4186
 GOOGLE_MANAGER_BACKEND_PORT=3916
 GOOGLE_MANAGER_BASE_PATH=/gm-preview/
@@ -312,6 +331,10 @@ XDG_DATA_HOME=/home/eric/.local/share/google-manager-xdg/previews/preview
 GOOGLE_MANAGER_LOG_DIR=/run/user/1000/google-manager/previews/preview
 GOOGLE_MANAGER_FRONTEND_HOST=127.0.0.1
 GOOGLE_MANAGER_ADMIN_PASSWORD=admin123
+GOOGLE_MANAGER_HMR_HOST=hdy.2oranges.cn
+GOOGLE_MANAGER_HMR_PROTOCOL=wss
+GOOGLE_MANAGER_HMR_CLIENT_PORT=443
+GOOGLE_MANAGER_HMR_PATH=/gm-preview/
 EOF
 
 # 3) 启动或切换预览实例
@@ -325,7 +348,7 @@ systemctl --user restart gm-preview.service
 - 切换 worktree 只需要改 `GOOGLE_MANAGER_ROOT_DIR` 后重启 `gm-preview.service`
 - 预览数据库、主密钥、日志目录与正式环境隔离
 
-详细配置见：`docs/nginx-gm-preview-path-routing.md` 与 `docs/hdy-server-ops.md`
+详细配置见：`docs/nginx-gm-preview-path-routing.md`、`docs/hdy-server-ops.md` 与 `docs/gmanager-worktree-runtime-layout.md`
 
 ### 构建
 
@@ -503,4 +526,3 @@ echo $GOOGLE_MANAGER_ADMIN_PASSWORD
 <p align="center">
   Made with ❤️ for Google Account Management
 </p>
-
