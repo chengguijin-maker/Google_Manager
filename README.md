@@ -132,13 +132,13 @@ systemctl --user enable --now local-services.service
 | 桌面模式 | 自动打开窗口 | 适合本机开发调试 |
 | 本机浏览器 | `http://127.0.0.1:5173/gm/` | `start-services.sh` 会拉起前端与后端，并默认挂在 `/gm/` |
 | 局域网浏览器 | `http://<服务器IP>:5173/gm/` | 前端默认监听 `0.0.0.0`，并使用 `/gm/` 路径 |
-| 公网访问 | `https://hy.2oranges.cn/gm/` | `443` 为统一入口，通过路径访问 Google Manager |
+| 公网访问 | `https://hdy.2oranges.cn/gm/` | `443` 为统一入口，通过路径访问 Google Manager |
 
 **当前防火墙口径**:
 - `ufw` 已启用
-- `80/tcp`、`443/tcp` 对公网开放
-- `3001`、`5173` 当前仅放行给 `172.0.0.0/8`
-- 当前已通过 `Nginx` 将 `https://hy.2oranges.cn/gm/` 反代到本机前端，并将 `https://hy.2oranges.cn/gm/api/` 反代到本机后端
+- `33305/tcp`、`80/tcp`、`443/tcp` 对公网开放
+- `22/tcp` 已关闭；`3001`、`5173`、`3916`、`4186` 不直接作为公网入口
+- 当前已通过 `Nginx` 将 `https://hdy.2oranges.cn/gm/` 反代到本机前端，并将 `https://hdy.2oranges.cn/gm/api/` 反代到本机后端
 
 ---
 
@@ -248,7 +248,7 @@ pnpm run dev:test
 访问方式：
 - 本机：`http://127.0.0.1:5173/gm/`
 - 局域网：`http://<服务器IP>:5173/gm/`
-- 公网：`https://hy.2oranges.cn/gm/`
+- 公网：`https://hdy.2oranges.cn/gm/`
 
 ### Linux 用户服务模式（默认长期运行方式）
 
@@ -286,7 +286,7 @@ journalctl --user -u local-services.service -f
 | 仅开放 `80/443` | 推荐 | 通过 `Nginx` / `Caddy` 反代到本机服务 |
 | 前端走 `/gm/`、接口走同源 `/gm/api/` | 推荐 | 便于统一鉴权、路径隔离与减少跨域问题 |
 
-详细配置见：`docs/nginx-https-gm-routing.md`
+详细配置见：`docs/nginx-https-gm-routing.md` 与 `docs/hdy-server-ops.md`
 
 ### 开发预览入口（固定 `/gm-preview/`）
 
@@ -324,7 +324,7 @@ systemctl --user restart gm-preview.service
 - 切换 worktree 只需要改 `GOOGLE_MANAGER_ROOT_DIR` 后重启 `gm-preview.service`
 - 预览数据库、主密钥、日志目录与正式环境隔离
 
-详细配置见：`docs/nginx-gm-preview-path-routing.md`
+详细配置见：`docs/nginx-gm-preview-path-routing.md` 与 `docs/hdy-server-ops.md`
 
 ### 构建
 
@@ -502,7 +502,6 @@ echo $GOOGLE_MANAGER_ADMIN_PASSWORD
 <p align="center">
   Made with ❤️ for Google Account Management
 </p>
-
 
 
 

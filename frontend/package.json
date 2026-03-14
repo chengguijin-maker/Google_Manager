@@ -32,5 +32,10 @@
         "tailwindcss": "^3.3.3",
         "vite": "^5.4.21",
         "vitest": "^4.0.18"
+    },
+    "pnpm": {
+        "onlyBuiltDependencies": [
+            "esbuild"
+        ]
     }
 }
