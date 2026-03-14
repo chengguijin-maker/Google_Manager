@@ -35,6 +35,9 @@ const frontendPort = Number(process.env.GOOGLE_MANAGER_FRONTEND_PORT || '5173')
 const apiTarget = process.env.GOOGLE_MANAGER_API_TARGET || 'http://127.0.0.1:3001'
 const basePath = normalizeBasePath(process.env.GOOGLE_MANAGER_BASE_PATH || '/')
 const apiBasePath = process.env.VITE_API_URL || (basePath === '/' ? '/api' : `${basePath.slice(0, -1)}/api`)
+const buildOutDir = process.env.GOOGLE_MANAGER_FRONTEND_BUILD_DIR
+    ? path.resolve(process.env.GOOGLE_MANAGER_FRONTEND_BUILD_DIR)
+    : path.resolve(__dirname, '../static')
 const allowedHosts = true
 const hmrHost = process.env.GOOGLE_MANAGER_HMR_HOST
 const hmrProtocol = process.env.GOOGLE_MANAGER_HMR_PROTOCOL || 'wss'
@@ -79,7 +82,7 @@ export default defineConfig({
         __APP_COMMIT_SHA__: JSON.stringify(appCommitSha),
     },
     build: {
-        outDir: path.resolve(__dirname, '../static'),
+        outDir: buildOutDir,
         emptyOutDir: true,
     },
     server: {

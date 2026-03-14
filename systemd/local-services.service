@@ -4,18 +4,15 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=/bin/bash -lc 'exec /home/eric/code/Google_Manager/start-services.sh'
-WorkingDirectory=/home/eric/code/Google_Manager
+ExecStart=/bin/bash -lc 'exec "${GOOGLE_MANAGER_ROOT_DIR}/start-services.sh"'
+WorkingDirectory=%h
+Environment=GOOGLE_MANAGER_ROOT_DIR=%h/.psm/worktrees/Google_Manager/gmanager-svc-hdy-prod
 Environment=GOOGLE_MANAGER_ADMIN_PASSWORD=admin123
 Environment=GOOGLE_MANAGER_BASE_PATH=/gm/
 Environment=VITE_API_URL=/gm/api
 Environment=GOOGLE_MANAGER_FRONTEND_MODE=static
+Environment=GOOGLE_MANAGER_FRONTEND_BUILD_DIR=%t/google-manager/build/gm
 Environment=GOOGLE_MANAGER_STATIC_DEPLOY_ROOT=/var/www/gmanager-hdy-prod
-Environment=GOOGLE_MANAGER_FRONTEND_HEALTHCHECK_URL=https://hdy.2oranges.cn/gm/
-Environment=GOOGLE_MANAGER_HMR_HOST=hdy.2oranges.cn
-Environment=GOOGLE_MANAGER_HMR_PROTOCOL=wss
-Environment=GOOGLE_MANAGER_HMR_CLIENT_PORT=443
-Environment=GOOGLE_MANAGER_HMR_PATH=/gm/
 Restart=on-failure
 RestartSec=3
 KillMode=control-group
