@@ -4,8 +4,8 @@
 
 | 编号 | 项目 | 建议值 |
 |---|---|---|
-| 1 | 正式入口 | `https://hy.2oranges.cn/gm/` 固定指向 `master` |
-| 2 | 开发预览入口 | `https://hy.2oranges.cn/gm-preview/` |
+| 1 | 正式入口 | `https://hdy.2oranges.cn/gm/` 固定指向服务 worktree `svc/gmanager-hdy-prod` |
+| 2 | 开发预览入口 | `https://hdy.2oranges.cn/gm-preview/` |
 | 3 | 预览前端 / 后端端口 | `4186 / 3916` |
 | 4 | 启动方式 | `systemd --user` 服务 `gm-preview.service` |
 | 5 | 数据目录 | `~/.local/share/google-manager/previews/preview` |
@@ -13,8 +13,8 @@
 ## 2. 目标
 
 1. 正式 `/gm/` 长期稳定，不因 feature 分支验收频繁切换。
-2. 所有开发版统一复用一个固定入口 `/gm-preview/`。
-3. 切换预览 worktree 时，只改环境文件并重启服务。
+2. 所有开发分支统一复用一个固定入口 `/gm-preview/`，不单独维护预览分支。
+3. 切换预览 worktree 时，只改环境文件中的目标目录并重启服务。
 4. 预览实例拥有独立数据库、主密钥、日志目录，避免误伤正式数据。
 
 ## 3. 目录与服务约定
@@ -23,6 +23,7 @@
 - 预览启动脚本：`start-preview.sh`
 - 安装脚本路径：`~/.local/bin/gm-start-preview.sh`
 - 环境文件：`~/.config/google-manager/gm-preview.env`
+- 正式服务 worktree：`~/.psm/worktrees/Google_Manager/gmanager-svc-hdy-prod`
 
 ## 4. 环境文件示例
 
@@ -93,12 +94,12 @@ curl http://127.0.0.1:4186/gm-preview/ | head
 curl http://127.0.0.1:3916/api/auth/check
 
 # 外网
-curl https://hy.2oranges.cn/gm-preview/ -k | head
-curl https://hy.2oranges.cn/gm-preview/api/auth/check -k
+curl https://hdy.2oranges.cn/gm-preview/ -k | head
+curl https://hdy.2oranges.cn/gm-preview/api/auth/check -k
 ```
 
 ## 8. 注意事项
 
-1. 切换 worktree 只改 `GOOGLE_MANAGER_ROOT_DIR`，不要改正式 `/gm/` 服务。
+1. 切换预览时只改 `GOOGLE_MANAGER_ROOT_DIR`，不要改正式 `/gm/` 服务。
 2. `GOOGLE_MANAGER_DATA_DIR` 与 `XDG_DATA_HOME` 必须和正式环境隔离。
 3. 如果某个 worktree 尚未编译出后端二进制，需要先执行：`cd <worktree>/src-tauri && cargo build --no-default-features --features test-server`。

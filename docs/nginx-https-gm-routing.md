@@ -4,30 +4,31 @@
 
 | 编号 | 项目 | 当前值 |
 |---|---|---|
-| 1 | 外网入口域名 | `hy.2oranges.cn` |
-| 2 | 外网访问地址 | `https://hy.2oranges.cn/gm/` |
+| 1 | 外网入口域名 | `hdy.2oranges.cn` |
+| 2 | 外网访问地址 | `https://hdy.2oranges.cn/gm/` |
 | 3 | 前端本机地址 | `http://127.0.0.1:5173/gm/` |
 | 4 | 后端本机地址 | `http://127.0.0.1:3001` |
-| 5 | API 外网地址 | `https://hy.2oranges.cn/gm/api/` |
+| 5 | API 外网地址 | `https://hdy.2oranges.cn/gm/api/` |
 | 6 | 用户服务 | `local-services.service` |
 
 ## 2. 路由设计
 
-- `http://hy.2oranges.cn/`：重定向到 `https://hy.2oranges.cn/`
-- `https://hy.2oranges.cn/`：重定向到 `https://hy.2oranges.cn/gm/`
-- `https://hy.2oranges.cn/gm/`：反代到本机前端 `5173`
-- `https://hy.2oranges.cn/gm/api/`：反代到本机后端 `3001/api/`
-- `https://hy.2oranges.cn/webdav/`：保留原有 WebDAV 转发
+- `http://hdy.2oranges.cn/`：重定向到 `https://hdy.2oranges.cn/`
+- `https://hdy.2oranges.cn/`：重定向到 `https://hdy.2oranges.cn/gm/`
+- `https://hdy.2oranges.cn/gm/`：反代到本机前端 `5173`
+- `https://hdy.2oranges.cn/gm/api/`：反代到本机后端 `3001/api/`
+- `https://hdy.2oranges.cn/gm-preview/`：反代到本机预览前端 `4186`
+- `https://hdy.2oranges.cn/gm-preview/api/`：反代到本机预览后端 `3916/api/`
 
 ## 3. Nginx 线上配置
 
-线上生效文件：`/etc/nginx/sites-available/hy.2oranges.cn`
+线上生效文件：`/etc/nginx/sites-available/hdy.2oranges.cn`
 
 ```nginx
 server {
     listen 80;
     listen [::]:80;
-    server_name hy.2oranges.cn;
+    server_name hdy.2oranges.cn;
 
     location ^~ /.well-known/acme-challenge/ {
         root /var/www/letsencrypt;
@@ -44,10 +45,10 @@ server {
 server {
     listen 443 ssl http2;
     listen [::]:443 ssl http2;
-    server_name hy.2oranges.cn;
+    server_name hdy.2oranges.cn;
 
-    ssl_certificate     /etc/letsencrypt/live/hy.2oranges.cn/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/hy.2oranges.cn/privkey.pem;
+    ssl_certificate     /etc/letsencrypt/live/hdy.2oranges.cn/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/hdy.2oranges.cn/privkey.pem;
 
     location ^~ /.well-known/acme-challenge/ {
         root /var/www/letsencrypt;
@@ -62,24 +63,6 @@ server {
 
     location = /gm {
         return 302 /gm/;
-    }
-
-    location = /webdav {
-        return 301 /webdav/;
-    }
-
-    location /webdav/ {
-        proxy_pass http://127.0.0.1:6065;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_request_buffering off;
-        proxy_buffering off;
-        proxy_read_timeout 3600s;
-        proxy_send_timeout 3600s;
-        client_max_body_size 0;
     }
 
     location /gm/api/ {
@@ -117,6 +100,31 @@ server {
         proxy_read_timeout 300s;
         proxy_send_timeout 300s;
     }
+
+    location /gm-preview/api/ {
+        proxy_pass http://127.0.0.1:3916/api/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
+    }
+
+    location /gm-preview/ {
+        proxy_pass http://127.0.0.1:4186;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
+    }
 }
 ```
 
@@ -131,7 +139,7 @@ server {
 ```ini
 Environment=GOOGLE_MANAGER_BASE_PATH=/gm/
 Environment=VITE_API_URL=/gm/api
-Environment=GOOGLE_MANAGER_HMR_HOST=hy.2oranges.cn
+Environment=GOOGLE_MANAGER_HMR_HOST=hdy.2oranges.cn
 Environment=GOOGLE_MANAGER_HMR_PROTOCOL=wss
 Environment=GOOGLE_MANAGER_HMR_CLIENT_PORT=443
 Environment=GOOGLE_MANAGER_HMR_PATH=/gm/
@@ -169,22 +177,24 @@ sudo systemctl reload nginx
 # 本机验证
 curl -I http://127.0.0.1:5173/
 curl http://127.0.0.1:5173/gm/ | head
-curl https://hy.2oranges.cn/gm/ -k | head
-curl https://hy.2oranges.cn/gm/api/auth/check -k
+curl https://hdy.2oranges.cn/gm/ -k | head
+curl https://hdy.2oranges.cn/gm/api/auth/check -k
 ```
 
 ## 6. 当前验证结果
 
-- `https://hy.2oranges.cn/gm/`：`200`
-- `https://hy.2oranges.cn/gm/api/auth/check`：`200`
-- `http://hy.2oranges.cn/`：`301 -> https://hy.2oranges.cn/`
-- `https://hy.2oranges.cn/`：`302 -> /gm/`
+- `https://hdy.2oranges.cn/gm/`：`200`
+- `https://hdy.2oranges.cn/gm/api/auth/check`：`200`
+- `https://hdy.2oranges.cn/gm-preview/`：`200`
+- `https://hdy.2oranges.cn/gm-preview/api/auth/check`：`200`
+- `http://hdy.2oranges.cn/`：`301 -> https://hdy.2oranges.cn/`
+- `https://hdy.2oranges.cn/`：`302 -> /gm/`
 
 ## 7. 注意事项
 
 - 多 worktree path 预览方案见：`docs/nginx-gm-preview-path-routing.md`。
 
 
-- `5173`、`3001` 当前只放行给 `172.0.0.0/8`，不建议直接作为公网入口。
+- 当前对公网放行的是 `33305`、`80`、`443`；`3001`、`5173`、`3916`、`4186` 不直接作为公网入口。
 - 公网应统一走 `80/443`，由 Nginx 路径反代转发。
-- `curl -I https://hy.2oranges.cn/gm/api/auth/check` 可能得到 `404`，因为后端未实现 `HEAD`；请使用 `GET` 验证。
+- `curl -I https://hdy.2oranges.cn/gm/api/auth/check` 可能得到 `404`，因为后端未实现 `HEAD`；请使用 `GET` 验证。

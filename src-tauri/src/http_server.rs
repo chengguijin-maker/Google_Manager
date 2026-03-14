@@ -472,6 +472,8 @@ pub async fn start_http_server(db: Arc<Database>, port: u16) -> std::io::Result<
         let cors = Cors::default()
             .allowed_origin("http://localhost:5173")
             .allowed_origin("http://127.0.0.1:5173")
+            .allowed_origin("http://hdy.2oranges.cn")
+            .allowed_origin("https://hdy.2oranges.cn")
             .allowed_origin("https://hy.2oranges.cn")
             .allowed_methods(vec!["GET", "POST", "PUT", "DELETE", "PATCH"])
             .allowed_headers(vec![
