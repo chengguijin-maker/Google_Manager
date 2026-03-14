@@ -131,6 +131,7 @@ Environment=VITE_API_URL=/gm/api
 Environment=GOOGLE_MANAGER_FRONTEND_MODE=static
 Environment=GOOGLE_MANAGER_FRONTEND_BUILD_DIR=%t/google-manager/build/gm
 Environment=GOOGLE_MANAGER_STATIC_DEPLOY_ROOT=/var/www/gmanager-hdy-prod
+Environment=GOOGLE_MANAGER_FRONTEND_HEALTHCHECK_URL=https://hdy.2oranges.cn/gm/
 ```
 
 ### 4.2 前端 Vite
