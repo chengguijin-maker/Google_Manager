@@ -1,19 +1,22 @@
 [Unit]
-Description=本地开发服务入口（Google Manager 等）
+Description=Google Manager 正式服务
 After=network.target
 
 [Service]
 Type=simple
+EnvironmentFile=-%h/.config/google-manager/gm-prod.env
 ExecStart=/bin/bash -lc 'exec "${GOOGLE_MANAGER_ROOT_DIR}/start-services.sh"'
 WorkingDirectory=%h
-Environment=GOOGLE_MANAGER_ROOT_DIR=%h/.psm/worktrees/Google_Manager/gmanager-svc-hdy-prod
-Environment=GOOGLE_MANAGER_ADMIN_PASSWORD=admin123
+Environment=GOOGLE_MANAGER_ROOT_DIR=%h/Google_Manager
+Environment=GOOGLE_MANAGER_ADMIN_PASSWORD=change-me
 Environment=GOOGLE_MANAGER_BASE_PATH=/gm/
 Environment=VITE_API_URL=/gm/api
+Environment=GOOGLE_MANAGER_DATA_DIR=%h/.local/share/googlemanager
+Environment=GOOGLE_MANAGER_LOG_DIR=%t/google-manager
 Environment=GOOGLE_MANAGER_FRONTEND_MODE=static
 Environment=GOOGLE_MANAGER_FRONTEND_BUILD_DIR=%t/google-manager/build/gm
 Environment=GOOGLE_MANAGER_STATIC_DEPLOY_ROOT=/var/www/gmanager-hdy-prod
-Environment=GOOGLE_MANAGER_FRONTEND_HEALTHCHECK_URL=https://hdy.2oranges.cn/gm/
+Environment=GOOGLE_MANAGER_FRONTEND_HEALTHCHECK_URL=
 Restart=on-failure
 RestartSec=3
 KillMode=control-group

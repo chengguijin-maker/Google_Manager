@@ -86,6 +86,9 @@ curl https://hdy.2oranges.cn/gm-preview/api/auth/check
 - 路由与正式静态托管：`docs/nginx-https-gm-routing.md`
 - 固定预览入口：`docs/nginx-gm-preview-path-routing.md`
 - worktree / 发布策略：`docs/gmanager-worktree-runtime-layout.md`
+- 迁移步骤：`docs/hdy-prod-migration.md`
+- 备份脚本：`scripts/backup-hdy-prod.sh`
+- 正式环境变量样例：`systemd/gm-prod.env.example`
 
 ## 8. 注意事项
 

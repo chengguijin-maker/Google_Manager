@@ -140,6 +140,11 @@ systemctl --user enable --now local-services.service
 - `22/tcp` 已关闭；`3001`、`5173`、`3916`、`4186` 不直接作为公网入口
 - 当前已通过 `Nginx` 直接托管 `https://hdy.2oranges.cn/gm/` 的静态资源，并将 `https://hdy.2oranges.cn/gm/api/` 反代到本机后端
 
+**正式服务迁移与备份**:
+- 迁移步骤见 `docs/hdy-prod-migration.md`
+- 一键备份脚本见 `scripts/backup-hdy-prod.sh`
+- 正式用户服务环境样例见 `systemd/gm-prod.env.example`
+
 ---
 
 ## 📦 下载与运行
