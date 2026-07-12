@@ -1,4 +1,5 @@
 use rand::{distributions::Alphanumeric, Rng};
+use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
 use subtle::ConstantTimeEq;
 
@@ -7,11 +8,16 @@ const BAN_DURATION_SECS: i64 = 24 * 60 * 60;
 const SESSION_TTL_SECS: i64 = 7 * 24 * 60 * 60;
 
 #[derive(Default)]
-struct AuthState {
+struct IpBanEntry {
     failed_attempts: u8,
     banned_until_epoch_secs: Option<i64>,
+}
+
+#[derive(Default)]
+struct GlobalState {
     session_token: Option<String>,
     session_expires_epoch_secs: Option<i64>,
+    ip_bans: HashMap<String, IpBanEntry>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
@@ -23,9 +29,9 @@ pub struct AuthResult {
     pub expires_at_epoch_secs: Option<i64>,
 }
 
-fn state() -> &'static Mutex<AuthState> {
-    static STATE: OnceLock<Mutex<AuthState>> = OnceLock::new();
-    STATE.get_or_init(|| Mutex::new(AuthState::default()))
+fn state() -> &'static Mutex<GlobalState> {
+    static STATE: OnceLock<Mutex<GlobalState>> = OnceLock::new();
+    STATE.get_or_init(|| Mutex::new(GlobalState::default()))
 }
 
 fn now_epoch_secs() -> i64 {
@@ -50,20 +56,25 @@ fn new_session_token() -> String {
         .collect()
 }
 
-fn clear_session(auth: &mut AuthState) {
-    auth.session_token = None;
-    auth.session_expires_epoch_secs = None;
+fn clear_session(state: &mut GlobalState) {
+    state.session_token = None;
+    state.session_expires_epoch_secs = None;
 }
 
-fn sync_expired_state(auth: &mut AuthState, now: i64) {
-    if let Some(until) = auth.banned_until_epoch_secs {
-        if until <= now {
-            auth.banned_until_epoch_secs = None;
+fn sync_expired_state(state: &mut GlobalState, now: i64) {
+    // 清理过期封禁和过期 session
+    state.ip_bans.retain(|_, entry| {
+        if let Some(until) = entry.banned_until_epoch_secs {
+            if until <= now {
+                entry.banned_until_epoch_secs = None;
+            }
         }
-    }
-    if let Some(expires_at) = auth.session_expires_epoch_secs {
+        // 保留仍封禁中或有待计数的条目，其余丢弃防止无限增长
+        entry.banned_until_epoch_secs.is_some() || entry.failed_attempts > 0
+    });
+    if let Some(expires_at) = state.session_expires_epoch_secs {
         if expires_at <= now {
-            clear_session(auth);
+            clear_session(state);
         }
     }
 }
@@ -80,24 +91,12 @@ pub fn check_auth(session_token: Option<&str>) -> Result<AuthResult, String> {
     }
 
     let now = now_epoch_secs();
-    let mut auth = state().lock().map_err(|e| e.to_string())?;
-    sync_expired_state(&mut auth, now);
-
-    if let Some(until) = auth.banned_until_epoch_secs {
-        if until > now {
-            return Ok(AuthResult {
-                success: false,
-                banned: true,
-                message: "账号已被封禁，请稍后再试".to_string(),
-                session_token: None,
-                expires_at_epoch_secs: None,
-            });
-        }
-    }
+    let mut gs = state().lock().map_err(|e| e.to_string())?;
+    sync_expired_state(&mut gs, now);
 
     let provided = session_token.map(str::trim).filter(|v| !v.is_empty());
-    let active = auth.session_token.clone();
-    let expires_at = auth.session_expires_epoch_secs;
+    let active = gs.session_token.clone();
+    let expires_at = gs.session_expires_epoch_secs;
 
     match (provided, active, expires_at) {
         (Some(input), Some(current), Some(expires_at)) if input == current => Ok(AuthResult {
@@ -125,7 +124,7 @@ pub fn require_auth(session_token: Option<&str>) -> Result<(), String> {
     Err(result.message)
 }
 
-pub fn login(password: &str) -> Result<AuthResult, String> {
+pub fn login(password: &str, client_ip: &str) -> Result<AuthResult, String> {
     let configured_password = match admin_password() {
         Ok(value) => value,
         Err(message) => {
@@ -140,10 +139,12 @@ pub fn login(password: &str) -> Result<AuthResult, String> {
     };
 
     let now = now_epoch_secs();
-    let mut auth = state().lock().map_err(|e| e.to_string())?;
-    sync_expired_state(&mut auth, now);
+    let mut gs = state().lock().map_err(|e| e.to_string())?;
+    sync_expired_state(&mut gs, now);
 
-    if let Some(until) = auth.banned_until_epoch_secs {
+    let entry = gs.ip_bans.entry(client_ip.to_string()).or_default();
+
+    if let Some(until) = entry.banned_until_epoch_secs {
         if until > now {
             return Ok(AuthResult {
                 success: false,
@@ -160,12 +161,12 @@ pub fn login(password: &str) -> Result<AuthResult, String> {
         .ct_eq(configured_password.as_bytes())
         .into()
     {
-        auth.failed_attempts = 0;
-        auth.banned_until_epoch_secs = None;
+        // 登录成功：清除该 IP 的错误记录
+        gs.ip_bans.remove(client_ip);
         let token = new_session_token();
         let expires_at = now + SESSION_TTL_SECS;
-        auth.session_token = Some(token.clone());
-        auth.session_expires_epoch_secs = Some(expires_at);
+        gs.session_token = Some(token.clone());
+        gs.session_expires_epoch_secs = Some(expires_at);
         return Ok(AuthResult {
             success: true,
             banned: false,
@@ -175,11 +176,13 @@ pub fn login(password: &str) -> Result<AuthResult, String> {
         });
     }
 
-    auth.failed_attempts = auth.failed_attempts.saturating_add(1);
-    if auth.failed_attempts >= MAX_FAILED_ATTEMPTS {
-        auth.failed_attempts = 0;
-        auth.banned_until_epoch_secs = Some(now + BAN_DURATION_SECS);
-        clear_session(&mut auth);
+    let entry = gs.ip_bans.entry(client_ip.to_string()).or_default();
+    entry.failed_attempts = entry.failed_attempts.saturating_add(1);
+    if entry.failed_attempts >= MAX_FAILED_ATTEMPTS {
+        entry.failed_attempts = 0;
+        entry.banned_until_epoch_secs = Some(now + BAN_DURATION_SECS);
+        // 封禁该 IP 时同时踢出当前 session
+        clear_session(&mut gs);
         return Ok(AuthResult {
             success: false,
             banned: true,
@@ -189,29 +192,27 @@ pub fn login(password: &str) -> Result<AuthResult, String> {
         });
     }
 
+    let remaining = MAX_FAILED_ATTEMPTS - gs.ip_bans[client_ip].failed_attempts;
     Ok(AuthResult {
         success: false,
         banned: false,
-        message: format!(
-            "密码错误，还可尝试 {} 次",
-            MAX_FAILED_ATTEMPTS - auth.failed_attempts
-        ),
+        message: format!("密码错误，还可尝试 {} 次", remaining),
         session_token: None,
         expires_at_epoch_secs: None,
     })
 }
 
 pub fn logout(session_token: Option<&str>) -> Result<(), String> {
-    let mut auth = state().lock().map_err(|e| e.to_string())?;
+    let mut gs = state().lock().map_err(|e| e.to_string())?;
     let provided = session_token.map(str::trim).filter(|v| !v.is_empty());
     if provided.is_none() {
-        clear_session(&mut auth);
+        clear_session(&mut gs);
         return Ok(());
     }
 
-    if let (Some(input), Some(current)) = (provided, auth.session_token.as_deref()) {
+    if let (Some(input), Some(current)) = (provided, gs.session_token.as_deref()) {
         if input == current {
-            clear_session(&mut auth);
+            clear_session(&mut gs);
             return Ok(());
         }
     }
@@ -224,6 +225,9 @@ mod tests {
     use super::*;
     use std::sync::{Mutex, OnceLock};
 
+    const TEST_IP: &str = "192.0.2.1";
+    const OTHER_IP: &str = "192.0.2.2";
+
     fn test_guard() -> std::sync::MutexGuard<'static, ()> {
         static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
         LOCK.get_or_init(|| Mutex::new(()))
@@ -232,11 +236,10 @@ mod tests {
     }
 
     fn reset_state() {
-        let mut auth = state().lock().expect("auth lock poisoned");
-        auth.failed_attempts = 0;
-        auth.banned_until_epoch_secs = None;
-        auth.session_token = None;
-        auth.session_expires_epoch_secs = None;
+        let mut gs = state().lock().expect("auth lock poisoned");
+        gs.session_token = None;
+        gs.session_expires_epoch_secs = None;
+        gs.ip_bans.clear();
     }
 
     #[test]
@@ -257,7 +260,7 @@ mod tests {
         std::env::remove_var("GOOGLE_MANAGER_ADMIN_PASSWORD");
         reset_state();
 
-        let result = login("anything").unwrap();
+        let result = login("anything", TEST_IP).unwrap();
         assert!(!result.success);
         assert!(!result.banned);
         assert!(result.message.contains("GOOGLE_MANAGER_ADMIN_PASSWORD"));
@@ -269,7 +272,7 @@ mod tests {
         std::env::set_var("GOOGLE_MANAGER_ADMIN_PASSWORD", "test-pass-123");
         reset_state();
 
-        let login_result = login("test-pass-123").unwrap();
+        let login_result = login("test-pass-123", TEST_IP).unwrap();
         assert!(login_result.success);
         let valid_token = login_result.session_token.unwrap();
 
@@ -278,25 +281,52 @@ mod tests {
     }
 
     #[test]
-    fn login_should_ban_after_three_failures() {
+    fn login_should_ban_ip_after_three_failures() {
         let _guard = test_guard();
         std::env::set_var("GOOGLE_MANAGER_ADMIN_PASSWORD", "test-pass-123");
         reset_state();
 
-        let r1 = login("wrong").unwrap();
+        let r1 = login("wrong", TEST_IP).unwrap();
         assert!(!r1.success);
         assert!(!r1.banned);
 
-        let r2 = login("wrong").unwrap();
+        let r2 = login("wrong", TEST_IP).unwrap();
         assert!(!r2.success);
         assert!(!r2.banned);
 
-        let r3 = login("wrong").unwrap();
+        let r3 = login("wrong", TEST_IP).unwrap();
         assert!(!r3.success);
         assert!(r3.banned);
+    }
 
-        let status = check_auth(None).unwrap();
-        assert!(!status.success);
-        assert!(status.banned);
+    #[test]
+    fn ban_should_not_affect_other_ip() {
+        let _guard = test_guard();
+        std::env::set_var("GOOGLE_MANAGER_ADMIN_PASSWORD", "test-pass-123");
+        reset_state();
+
+        // TEST_IP 连续失败 3 次被封禁
+        for _ in 0..3 {
+            login("wrong", TEST_IP).unwrap();
+        }
+
+        // OTHER_IP 仍可正常尝试
+        let result = login("wrong", OTHER_IP).unwrap();
+        assert!(!result.success);
+        assert!(!result.banned);
+    }
+
+    #[test]
+    fn successful_login_clears_ip_ban_counter() {
+        let _guard = test_guard();
+        std::env::set_var("GOOGLE_MANAGER_ADMIN_PASSWORD", "test-pass-123");
+        reset_state();
+
+        login("wrong", TEST_IP).unwrap();
+        login("wrong", TEST_IP).unwrap();
+        // 第 3 次用正确密码，计数应清零且不封禁
+        let result = login("test-pass-123", TEST_IP).unwrap();
+        assert!(result.success);
+        assert!(!result.banned);
     }
 }

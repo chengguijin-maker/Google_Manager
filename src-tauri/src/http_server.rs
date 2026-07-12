@@ -43,6 +43,28 @@ fn ensure_authorized(req: &HttpRequest) -> Result<(), HttpResponse> {
     crate::auth::require_auth(token.as_deref()).map_err(|e| unauthorized_response(&e))
 }
 
+fn client_ip(req: &HttpRequest) -> String {
+    // nginx 反代时优先取 X-Real-IP，其次 X-Forwarded-For 第一项
+    if let Some(v) = req.headers().get("x-real-ip").and_then(|v| v.to_str().ok()) {
+        let ip = v.trim();
+        if !ip.is_empty() {
+            return ip.to_string();
+        }
+    }
+    if let Some(v) = req.headers().get("x-forwarded-for").and_then(|v| v.to_str().ok()) {
+        if let Some(first) = v.split(',').next() {
+            let ip = first.trim();
+            if !ip.is_empty() {
+                return ip.to_string();
+            }
+        }
+    }
+    req.peer_addr()
+        .map(|a| a.ip().to_string())
+        .unwrap_or_else(|| "unknown".to_string())
+}
+
+
 #[derive(Deserialize)]
 pub struct GetAccountsQuery {
     pub search: Option<String>,
@@ -417,8 +439,9 @@ async fn restore_backup_handler(
     }
 }
 
-async fn login_handler(body: web::Json<LoginRequest>) -> impl Responder {
-    match crate::auth::login(&body.password) {
+async fn login_handler(req: HttpRequest, body: web::Json<LoginRequest>) -> impl Responder {
+    let ip = client_ip(&req);
+    match crate::auth::login(&body.password, &ip) {
         Ok(result) => success_response(result, "操作成功"),
         Err(e) => err_response(e),
     }
